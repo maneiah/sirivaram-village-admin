@@ -9,7 +9,6 @@ import AdminBlogs from "./pages/Blogs/AdminBlogs";
 import AdminGallery from "./pages/Gallery/AdminGallery";
 import AdminReportSummary from "./pages/Reports/AdminReports";
 import AdminEvents from "./pages/Events/AdminEvents";
-
 import FooterSettings from "./pages/Footer/FooterSettings";
 import AdminPayments from "./pages/AdminPayments/AdminPayments";
 
@@ -22,27 +21,25 @@ const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
 
-          {/* OPTIONAL: Redirect root to /login */}
+          {/* Redirect root */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* PROTECTED ADMIN ROUTES - Wrapped in layout */}
+          {/* ADMIN ROUTES */}
           <Route element={<AdminPanelLayoutTest />}>
-            {/* ✅ Default admin dashboard (updated from "login" to "reports" for better UX) */}
-            <Route index element={<Navigate to="login" replace />} />
-            <Route path="reports" element={<AdminReportSummary />} />
+            {/* choose one */}
+            <Route index element={<Navigate to="/reports" replace />} />
+            {/* or: <Route index element={<Navigate to="/login" replace />} /> */}
 
+            <Route path="reports" element={<AdminReportSummary />} />
             <Route path="users" element={<Users />} />
             <Route path="blogs" element={<AdminBlogs />} />
-
-            {/* ✅ EVENTS (or replace with Orders if needed) */}
             <Route path="events" element={<AdminEvents />} />
-
             <Route path="gallery" element={<AdminGallery />} />
             <Route path="footer" element={<FooterSettings />} />
             <Route path="payments" element={<AdminPayments />} />
           </Route>
 
-          {/* DEFAULT: Catch-all redirect to login */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
