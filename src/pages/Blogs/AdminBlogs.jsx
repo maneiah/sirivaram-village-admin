@@ -38,9 +38,10 @@ import {
   DeleteOutlined,
   LinkOutlined,
   PictureOutlined,
+  VideoCameraOutlined,
+  CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  CloseCircleOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -55,20 +56,21 @@ const emptyForm = {
   title: "",
   description: "",
   imageUrl: "",
+  videoUrl: "",
+  year: new Date().getFullYear(),
   isActive: true,
 };
 
 const safeText = (v) => (typeof v === "string" ? v : "");
 const trimOrEmpty = (v) => safeText(v).trim();
-
 const truncate = (text, max = 120) => {
   const t = safeText(text).trim();
-  if (!t) return "-";
+  if (!t) return "—";
   return t.length > max ? t.slice(0, max) + "…" : t;
 };
 
 const formatDate = (isoString) => {
-  if (!isoString) return "-";
+  if (!isoString) return "—";
   return new Date(isoString).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -78,7 +80,7 @@ const formatDate = (isoString) => {
   });
 };
 
-const useDebouncedValue = (value, delay = 250) => {
+const useDebouncedValue = (value, delay = 300) => {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
     const t = window.setTimeout(() => setDebounced(value), delay);
@@ -99,36 +101,30 @@ const StatusTag = ({ active }) => (
 export default function AdminBlogs() {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isSmall = !screens.sm;
 
   const [items, setItems] = useState([]);
-
   const [pageLoading, setPageLoading] = useState(false);
   const [firstLoad, setFirstLoad] = useState(true);
-
   const [saveLoading, setSaveLoading] = useState(false);
   const [deleteLoadingId, setDeleteLoadingId] = useState(null);
   const [toggleLoadingId, setToggleLoadingId] = useState(null);
-
   const [error, setError] = useState("");
-
   const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 250);
+  const debouncedSearch = useDebouncedValue(search);
 
-  // Pagination state (for correct S.No)
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Create/Edit modal
   const [modalOpen, setModalOpen] = useState(false);
-  const [mode, setMode] = useState("create"); // create | edit
+  const [mode, setMode] = useState("create");
   const [form, setForm] = useState({ ...emptyForm });
 
-  // Preview drawer
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState(null);
 
-  // avoid state updates after unmount
   const aliveRef = useRef(true);
+
   useEffect(() => {
     aliveRef.current = true;
     return () => {
@@ -144,38 +140,20 @@ export default function AdminBlogs() {
   const fetchItems = useCallback(async () => {
     setPageLoading(true);
     setError("");
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-
     try {
-      // ✅ Admin listing should ideally use ADMIN_BLOG_API
-      // If your backend only allows public listing, switch to BLOG_API.
       const res = await fetch(BLOG_API, {
         headers: { ...getAuthHeaders() },
-        signal: controller.signal,
       });
 
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(
-          `Load failed (HTTP ${res.status})${txt ? ` - ${txt}` : ""}`,
-        );
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-
       if (aliveRef.current) setItems(list);
-    } catch (e) {
-      const msg =
-        e?.name === "AbortError"
-          ? "Request timed out. Please try again."
-          : e?.message || "Failed to load blog posts.";
-      setError(msg);
+    } catch (err) {
+      setError(err.message || "Failed to load blogs");
       if (aliveRef.current) setItems([]);
     } finally {
-      clearTimeout(timeout);
       if (aliveRef.current) {
         setPageLoading(false);
         setFirstLoad(false);
@@ -190,9 +168,8 @@ export default function AdminBlogs() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return items;
-
     return items.filter((item) =>
-      [item?.title, item?.description].join(" ").toLowerCase().includes(q),
+      [item?.title, item?.description].join(" ").toLowerCase().includes(q)
     );
   }, [items, debouncedSearch]);
 
@@ -209,6 +186,8 @@ export default function AdminBlogs() {
       title: safeText(item.title),
       description: safeText(item.description),
       imageUrl: safeText(item.imageUrl),
+      videoUrl: safeText(item.videoUrl),
+      year: item.year || new Date().getFullYear(),
       isActive: Boolean(item.isActive),
     });
     setModalOpen(true);
@@ -222,6 +201,8 @@ export default function AdminBlogs() {
   const validateForm = () => {
     if (!trimOrEmpty(form.title)) return "Title is required";
     if (!trimOrEmpty(form.description)) return "Description is required";
+    if (form.year < 1900 || form.year > 2100)
+      return "Please enter a valid year (1900–2100)";
     return "";
   };
 
@@ -235,13 +216,15 @@ export default function AdminBlogs() {
     setSaveLoading(true);
     try {
       const isEdit = mode === "edit";
-      const url = isEdit ? `${ADMIN_BLOG_API}/${form.id}` : BLOG_API;
+      const url = isEdit ? `${ADMIN_BLOG_API}/${form.id}` : ADMIN_BLOG_API;
       const method = isEdit ? "PUT" : "POST";
 
       const payload = {
         title: trimOrEmpty(form.title),
         description: trimOrEmpty(form.description),
         imageUrl: trimOrEmpty(form.imageUrl),
+        videoUrl: trimOrEmpty(form.videoUrl),
+        year: Number(form.year),
         isActive: Boolean(form.isActive),
       };
 
@@ -256,33 +239,24 @@ export default function AdminBlogs() {
 
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(
-          `${method} failed (HTTP ${res.status})${txt ? ` - ${txt}` : ""}`,
-        );
+        throw new Error(`Save failed - ${res.status}${txt ? ` ${txt}` : ""}`);
       }
 
-      message.success(
-        isEdit ? "Blog updated successfully" : "Blog created successfully",
-      );
+      message.success(isEdit ? "Blog updated" : "Blog created");
       setModalOpen(false);
-      setForm({ ...emptyForm });
-
-      // Keep current page after update
       fetchItems();
     } catch (e) {
-      message.error(e?.message || "Save failed");
+      message.error(e.message || "Operation failed");
     } finally {
       if (aliveRef.current) setSaveLoading(false);
     }
   };
 
-  const deleteItem = async (id) => {
+  const deleteItem = (id) => {
     Modal.confirm({
-      title: "Delete blog post?",
-      content: "This action cannot be undone.",
+      title: "Delete this blog post?",
       okText: "Delete",
       okButtonProps: { danger: true },
-      cancelText: "Cancel",
       onOk: async () => {
         setDeleteLoadingId(id);
         try {
@@ -290,16 +264,11 @@ export default function AdminBlogs() {
             method: "DELETE",
             headers: getAuthHeaders(),
           });
-          if (!res.ok) {
-            const txt = await res.text().catch(() => "");
-            throw new Error(
-              `Delete failed (HTTP ${res.status})${txt ? ` - ${txt}` : ""}`,
-            );
-          }
-          message.success("Blog deleted successfully");
+          if (!res.ok) throw new Error("Delete failed");
+          message.success("Deleted successfully");
           fetchItems();
-        } catch (e) {
-          message.error(e?.message || "Delete failed");
+        } catch {
+          message.error("Could not delete");
         } finally {
           if (aliveRef.current) setDeleteLoadingId(null);
         }
@@ -307,7 +276,6 @@ export default function AdminBlogs() {
     });
   };
 
-  // ✅ Quick activate/deactivate (user friendly)
   const toggleActive = async (item, next) => {
     setToggleLoadingId(item.id);
     try {
@@ -318,275 +286,223 @@ export default function AdminBlogs() {
           ...getAuthHeaders(),
         },
         body: JSON.stringify({
-          title: safeText(item.title),
-          description: safeText(item.description),
-          imageUrl: safeText(item.imageUrl),
-          isActive: Boolean(next),
+          ...item,
+          isActive: next,
         }),
       });
-
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(
-          `Update failed (HTTP ${res.status})${txt ? ` - ${txt}` : ""}`,
-        );
-      }
-
-      message.success(next ? "Blog activated" : "Blog deactivated");
+      if (!res.ok) throw new Error();
+      message.success(next ? "Activated" : "Deactivated");
       fetchItems();
-    } catch (e) {
-      message.error(e?.message || "Status update failed");
+    } catch {
+      message.error("Status update failed");
     } finally {
       if (aliveRef.current) setToggleLoadingId(null);
     }
   };
 
   const mediaCell = (item) => {
-    const url = trimOrEmpty(item?.imageUrl);
-    if (!url) return <Text type="secondary">-</Text>;
+    const img = trimOrEmpty(item?.imageUrl);
+    const vid = trimOrEmpty(item?.videoUrl);
+
+    if (!img && !vid) return <Text type="secondary">—</Text>;
 
     return (
       <Space size={8}>
-        <Tooltip title="Click to preview image">
-          <Image
-            src={url}
-            width={72}
-            height={46}
-            style={{ objectFit: "cover", borderRadius: 10 }}
-            preview={{ src: url }}
-            fallback=""
-            placeholder={
-              <div
-                style={{
-                  width: 72,
-                  height: 46,
-                  display: "grid",
-                  placeItems: "center",
-                  borderRadius: 10,
-                  background: "rgba(0,0,0,0.04)",
-                }}
-              >
-                <PictureOutlined />
-              </div>
-            }
-          />
-        </Tooltip>
+        {img && (
+          <Tooltip title="Image preview">
+            <Image
+              src={img}
+              width={64}
+              height={48}
+              style={{ borderRadius: 8, objectFit: "cover" }}
+              preview={{ src: img }}
+              fallback=""
+            />
+          </Tooltip>
+        )}
+        {vid && (
+          <Tooltip title="Video link present">
+            <Tag icon={<VideoCameraOutlined />} color="processing">
+              Video
+            </Tag>
+          </Tooltip>
+        )}
       </Space>
     );
   };
 
-  const columns = useMemo(() => {
-    return [
+  const columns = useMemo(
+    () => [
       {
-        title: "S No",
+        title: "S.No",
+      
         align: "center",
-        width: 70,
-        render: (_, __, idx) => (page - 1) * pageSize + idx + 1, // ✅ correct numbering
-        fixed: isMobile ? undefined : "left",
+        
+        render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
       },
       {
         title: "Title",
         dataIndex: "title",
-        render: (v, item) => (
+        align:"center",
+        render: (v, record) => (
           <Space direction="vertical" size={0}>
-            <Text strong title={safeText(v)}>
-              {truncate(v, 60)}
-            </Text>
+            <Text strong>{truncate(v, 55)}</Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              ID: {item?.id}
+              ID: {record.id?.slice(0, 8)}...
             </Text>
           </Space>
         ),
-        ellipsis: true,
+       
       },
       {
-        title: "Description",
-        dataIndex: "description",
-        render: (v) => (
-          <Tooltip title={safeText(v)}>
-            <Text>{truncate(v, 140)}</Text>
-          </Tooltip>
-        ),
-        responsive: ["md"],
+        title: "Year",
+        dataIndex: "year",
+        
+        align: "center",
+       
       },
       {
         title: "Media",
+      align:"center",
+       
         render: (_, item) => mediaCell(item),
-        responsive: ["sm"],
       },
       {
         title: "Status",
-        dataIndex: "isActive",
+      
         align: "center",
-        render: (v, item) => (
-          <Space direction="vertical" size={4} align="center">
-            <StatusTag active={Boolean(v)} />
+      
+        render: (_, item) => (
+          <Space direction="vertical" size={2} align="center">
+            <StatusTag active={item.isActive} />
             <Switch
               size="small"
-              checked={Boolean(v)}
+              checked={item.isActive}
               loading={toggleLoadingId === item.id}
               onChange={(checked) => toggleActive(item, checked)}
             />
           </Space>
         ),
-        responsive: ["md"],
-      },
-      {
-        title: "Created",
-        dataIndex: "createdAt",
-        render: (v) => <Text type="secondary">{formatDate(v)}</Text>,
-        responsive: ["lg"],
       },
       {
         title: "Actions",
+  
         align: "center",
+        
         render: (_, item) => (
-          <Space wrap size={8} style={{ justifyContent: "center" }}>
-            <Tooltip title="View">
-              <Button
-                size="small"
-                icon={<EyeOutlined />}
-                onClick={() => openPreview(item)}
-              />
-            </Tooltip>
-
-            <Tooltip title="Edit">
-              <Button
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => openEdit(item)}
-              >
-                {isMobile ? "" : "Edit"}
-              </Button>
-            </Tooltip>
-
-            <Tooltip title="Delete">
-              <Button
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                loading={deleteLoadingId === item.id}
-                onClick={() => deleteItem(item.id)}
-              >
-                {isMobile ? "" : "Delete"}
-              </Button>
-            </Tooltip>
+          <Space size="small" wrap>
+            
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openEdit(item)}
+            />
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleteLoadingId === item.id}
+              onClick={() => deleteItem(item.id)}
+            />
           </Space>
         ),
       },
-    ];
-  }, [deleteLoadingId, isMobile, page, pageSize, toggleLoadingId]);
+    ],
+    [page, pageSize, isMobile, toggleLoadingId, deleteLoadingId]
+  );
 
   return (
     <ConfigProvider
       theme={{
         token: {
-          // ✅ AntD vibe: let primary follow your system theme; don’t force blue
-          borderRadius: 10,
+          colorPrimary: "#008cba",
+          colorSuccess: "#1ab394",
+          borderRadius: 8,
+          controlHeight: 36,
         },
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          padding: isMobile ? 12 : 24,
-       
-          minHeight: "100vh",
-        }}
-      >
-        <Card
-          bordered={false}
-          style={{
-            borderRadius: 12,
-            boxShadow: "0 1px 10px rgba(0,0,0,0.06)",
-          }}
-          bodyStyle={{ padding: isMobile ? 12 : 20 }}
-        >
+      <div style={{ padding: isMobile ? "16px 12px" : "24px", minHeight: "100vh" }}>
+        <Card bordered={false} style={{ borderRadius: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
           {/* Header */}
-          <Row gutter={[12, 12]} align="middle" justify="space-between">
-            <Col xs={24} md={14}>
-              <Space direction="vertical" size={2}>
-                <Title level={4} style={{ margin: 0 }}>
-                  Blogs Admin
-                </Title>
-                <Text type="secondary">
-                  Create, update, delete blog posts. Toggle status instantly.
-                </Text>
-              </Space>
-            </Col>
+       <Row gutter={[16, 16]} align="middle">
+  {/* LEFT */}
+  <Col xs={24} md={12}>
+    <Space direction="vertical" size={4}>
+      <Title level={4} style={{ margin: 0, color: "#008cba" }}>
+        Blog Management
+      </Title>
+      <Text type="secondary">
+        Manage your blog posts — create, edit, toggle visibility
+      </Text>
+    </Space>
+  </Col>
 
-            <Col xs={24} md={10}>
-              <Row gutter={[8, 8]} justify="end">
-                <Col xs={24} sm={14}>
-                  <Input
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    placeholder="Search by title or description..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </Col>
+  {/* RIGHT */}
+  <Col xs={24} md={12}>
+    <Row justify="end" gutter={[8, 8]}>
+      <Col xs={24} sm={14} md={10} lg={8}>
+        <Input
+          placeholder="Search title or description..."
+          prefix={<SearchOutlined />}
+          allowClear
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </Col>
 
-                <Col xs={12} sm={5}>
-                  <Button
-                   style={{backgroundColor:"#008cba",color:"white"}}
-                    icon={<PlusOutlined />}
-                    onClick={openCreate}
-                    block
-                  >
-                    {isMobile ? "" : "Add"}
-                  </Button>
-                </Col>
+      <Col xs={12} sm={5} md={5}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={openCreate}
+          block
+        >
+          {!isSmall && "New Blog"}
+        </Button>
+      </Col>
 
-                <Col xs={12} sm={5}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={fetchItems}
-                    loading={pageLoading}
-                    block
-                  >
-                    {isMobile ? "" : "Refresh"}
-                  </Button>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
+      <Col xs={12} sm={5} md={5}>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={fetchItems}
+          loading={pageLoading}
+          block
+        >
+          {!isSmall && "Refresh"}
+        </Button>
+      </Col>
+    </Row>
+  </Col>
+</Row>
 
-          <Divider style={{ margin: "14px 0" }} />
 
-          {/* Error */}
-          {error ? (
+
+          <Divider />
+
+          {error && (
             <Alert
               type="error"
+              message="Error loading blogs"
+              description={error}
               showIcon
-              message="Couldn’t load blog posts"
-              description={
-                <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                  <Text>{error}</Text>
-                  <Button
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    onClick={fetchItems}
-                  >
-                    Try Again
-                  </Button>
-                </Space>
+              action={
+                <Button size="small" type="primary" onClick={fetchItems}>
+                  Retry
+                </Button>
               }
-              style={{ marginBottom: 12, borderRadius: 12 }}
+              style={{ marginBottom: 16 }}
             />
-          ) : null}
+          )}
 
-          {/* First load skeleton */}
           {firstLoad ? (
-            <Card bordered style={{ borderRadius: 12 }}>
-              <Skeleton active paragraph={{ rows: 6 }} />
-            </Card>
+            <Skeleton active paragraph={{ rows: 8 }} />
           ) : (
             <Table
               columns={columns}
               dataSource={filtered}
-              rowKey={(r) => r.id}
-              size={isMobile ? "small" : "middle"}
+              rowKey="id"
+          
               scroll={{ x: "100%" }}
               loading={pageLoading}
               pagination={{
@@ -600,42 +516,59 @@ export default function AdminBlogs() {
                 showTotal: (total, range) =>
                   `${range[0]}-${range[1]} of ${total}`,
               }}
-              locale={{
-                emptyText: (
-                  <div style={{ padding: "24px 0", color: "rgba(0,0,0,0.45)" }}>
-                    No blog posts found.
-                  </div>
-                ),
-              }}
+                bordered
+              locale={{ emptyText: "No blog posts found" }}
             />
           )}
         </Card>
 
-        {/* ===== Create/Edit Modal ===== */}
+        {/* ─── Create / Edit Modal ─── */}
         <Modal
-          title={mode === "edit" ? "Edit Blog" : "Create Blog"}
+          title={mode === "edit" ? "Edit Blog Post" : "Create New Blog"}
           open={modalOpen}
-          onCancel={() => (!saveLoading ? setModalOpen(false) : null)}
+          onCancel={() => !saveLoading && setModalOpen(false)}
           onOk={saveItem}
-          okText={mode === "edit" ? "Update Blog" : "Create Blog"}
+          okText={mode === "edit" ? "Update" : "Create"}
           confirmLoading={saveLoading}
+          width={isMobile ? "96%" : 720}
+          centered
           destroyOnClose
-          width={isMobile ? "100%" : 640}
-          style={isMobile ? { top: 0, paddingBottom: 0 } : undefined}
-          
-          bodyStyle={{ padding: "18px 18px 10px" }}
         >
-   
-          <Form layout="vertical" size="middle">
-            <Row gutter={[12, 12]}>
+          <Form layout="vertical">
+            <Row gutter={16}>
               <Col xs={24}>
                 <Form.Item label="Title *" required>
                   <Input
                     value={form.title}
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
                     placeholder="Enter blog title"
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, title: e.target.value }))
-                    }
+                    disabled={saveLoading}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={12}>
+                <Form.Item label="Year" required>
+                  <Input
+                    type="number"
+                    prefix={<CalendarOutlined />}
+                    value={form.year}
+                    onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
+                    placeholder="YYYY"
+                    min={1900}
+                    max={2100}
+                    disabled={saveLoading}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={24} md={12}>
+                <Form.Item label="Status">
+                  <Switch
+                    checked={form.isActive}
+                    onChange={(v) => setForm((p) => ({ ...p, isActive: v }))}
+                    checkedChildren="Active"
+                    unCheckedChildren="Inactive"
                     disabled={saveLoading}
                   />
                 </Form.Item>
@@ -646,115 +579,61 @@ export default function AdminBlogs() {
                   <TextArea
                     rows={5}
                     value={form.description}
-                    placeholder="Write blog description..."
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, description: e.target.value }))
-                    }
+                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Write a short description..."
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={14}>
+              <Col xs={24} md={12}>
                 <Form.Item label="Image URL">
                   <Input
                     prefix={<LinkOutlined />}
                     value={form.imageUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))}
                     placeholder="https://..."
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, imageUrl: e.target.value }))
-                    }
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={10}>
-                <Form.Item label="Status">
-                  <Space>
-                    <Switch
-                      checked={form.isActive}
-                      onChange={(checked) =>
-                        setForm((p) => ({ ...p, isActive: checked }))
-                      }
-                      disabled={saveLoading}
-                    />
-                    <Text>{form.isActive ? "Active" : "Inactive"}</Text>
-                  </Space>
+              <Col xs={24} md={12}>
+                <Form.Item label="Video URL (optional)">
+                  <Input
+                    prefix={<VideoCameraOutlined />}
+                    value={form.videoUrl}
+                    onChange={(e) => setForm((p) => ({ ...p, videoUrl: e.target.value }))}
+                    placeholder="https://youtube.com/... or direct link"
+                    disabled={saveLoading}
+                  />
                 </Form.Item>
               </Col>
 
-              {trimOrEmpty(form.imageUrl) ? (
+              {(form.imageUrl || form.videoUrl) && (
                 <Col xs={24}>
-                  <Card size="small" style={{ borderRadius: 12 }} bordered>
-                    <Space align="center">
-                      <PictureOutlined />
-                      <Text strong>Image Preview</Text>
-                    </Space>
-                    <div style={{ height: 10 }} />
-                    <Image
-                      src={trimOrEmpty(form.imageUrl)}
-                      width="100%"
-                      style={{
-                        maxHeight: 220,
-                        objectFit: "cover",
-                        borderRadius: 10,
-                      }}
-                      fallback=""
-                      preview
-                    />
-                  </Card>
+                  <Divider orientation="left">Media Preview</Divider>
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    {form.imageUrl && (
+                      <Image
+                        src={trimOrEmpty(form.imageUrl)}
+                        alt="preview"
+                        style={{ maxHeight: 240, objectFit: "contain", borderRadius: 8 }}
+                        preview
+                      />
+                    )}
+                    {form.videoUrl && (
+                      <Text type="secondary">
+                        Video link added: <strong>{truncate(form.videoUrl, 60)}</strong>
+                      </Text>
+                    )}
+                  </Space>
                 </Col>
-              ) : null}
+              )}
             </Row>
           </Form>
         </Modal>
 
-        {/* ===== Preview Drawer ===== */}
-        <Drawer
-          title="Blog Preview"
-          open={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-          width={isMobile ? "100%" : 760}
-          destroyOnClose
-        >
-          {previewItem ? (
-            <Space direction="vertical" size={12} style={{ width: "100%" }}>
-              <Title level={4} style={{ margin: 0 }}>
-                {safeText(previewItem.title)}
-              </Title>
-
-              <Space wrap size={8}>
-                <Text type="secondary">
-                  Created: {formatDate(previewItem.createdAt)}
-                </Text>
-                <StatusTag active={Boolean(previewItem.isActive)} />
-              </Space>
-
-              {trimOrEmpty(previewItem.imageUrl) ? (
-                <Image
-                  src={trimOrEmpty(previewItem.imageUrl)}
-                  width="100%"
-                  style={{
-                    maxHeight: 360,
-                    objectFit: "cover",
-                    borderRadius: 12,
-                  }}
-                  fallback=""
-                  preview
-                />
-              ) : null}
-
-              <Card bordered style={{ borderRadius: 12 }}>
-                <Text style={{ whiteSpace: "pre-wrap" }}>
-                  {safeText(previewItem.description) || "-"}
-                </Text>
-              </Card>
-            </Space>
-          ) : (
-            <Text type="secondary">No preview available.</Text>
-          )}
-        </Drawer>
       </div>
     </ConfigProvider>
   );

@@ -45,6 +45,7 @@ const normalize = (data) => ({
   facebook: safeStr(data?.facebook),
   instagram: safeStr(data?.instagram),
   youtube: safeStr(data?.youtube),
+  twitter: safeStr(data?.twitter), // ✅ added
 });
 
 export default function FooterSettings() {
@@ -56,7 +57,6 @@ export default function FooterSettings() {
   const [loading, setLoading] = useState(true);
   const [firstLoad, setFirstLoad] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [apiError, setApiError] = useState("");
 
   const aliveRef = useRef(true);
@@ -96,10 +96,10 @@ export default function FooterSettings() {
         e?.name === "CanceledError"
           ? "Request cancelled"
           : e?.name === "AbortError"
-            ? "Request timed out. Please try again."
-            : e?.response?.data?.message ||
-              e?.message ||
-              "Failed to load footer details.";
+          ? "Request timed out. Please try again."
+          : e?.response?.data?.message ||
+            e?.message ||
+            "Failed to load footer details.";
 
       if (aliveRef.current) {
         setApiError(msg);
@@ -123,7 +123,7 @@ export default function FooterSettings() {
     if (!v) return Promise.resolve();
     try {
       const u = new URL(v);
-      if (u.protocol !== "http:" && u.protocol !== "https:") {
+      if (!["http:", "https:"].includes(u.protocol)) {
         return Promise.reject(new Error("URL must start with http/https"));
       }
       return Promise.resolve();
@@ -139,7 +139,7 @@ export default function FooterSettings() {
 
       const values = await form.validateFields();
 
-      // ✅ Payload exactly as backend expects
+      // ✅ Payload updated
       const payload = {
         address: safeStr(values.address).trim(),
         contactNo: safeStr(values.contactNo).trim(),
@@ -147,6 +147,7 @@ export default function FooterSettings() {
         facebook: safeStr(values.facebook).trim(),
         instagram: safeStr(values.instagram).trim(),
         youtube: safeStr(values.youtube).trim(),
+        twitter: safeStr(values.twitter).trim(), // ✅ added
       };
 
       await axios.put(ADMIN_PUT_URL, payload, {
@@ -172,8 +173,7 @@ export default function FooterSettings() {
     }
   };
 
-  const onSave = async () => {
-    // Optional: confirm before saving (prevents wrong update)
+  const onSave = () => {
     Modal.confirm({
       title: "Save footer changes?",
       icon: <ExclamationCircleOutlined />,
@@ -187,69 +187,66 @@ export default function FooterSettings() {
 
   return (
     <ConfigProvider theme={{ token: { borderRadius: 12 } }}>
-      <div
-        style={{
-          width: "100%",
-          padding: isMobile ? 12 : 24,
-      
-          minHeight: "100vh",
-        }}
-      >
+      <div style={{ width: "100%", padding: isMobile ? 12 : 24, minHeight: "100vh" }}>
         <Card
           bordered={false}
           style={{ borderRadius: 12, boxShadow: "0 1px 10px rgba(0,0,0,0.06)" }}
           bodyStyle={{ padding: isMobile ? 12 : 20 }}
         >
-          {/* Header */}
-          <Row gutter={[12, 12]} align="middle" justify="space-between">
-            <Col xs={24} md={14}>
-              <Space direction="vertical" size={2}>
-                <Title level={4} style={{ margin: 0 }}>
-                  Footer Settings
-                </Title>
-                <Text type="secondary">
-                  Update address, contact, and social links shown in the footer.
-                </Text>
-              </Space>
-            </Col>
+          {/* HEADER */}
+<Row gutter={[16, 16]} align="middle">
+  {/* LEFT */}
+  <Col xs={24} md={14}>
+    <Space direction="vertical" size={2}>
+      <Title level={4} style={{ margin: 0 }}>
+        Footer Settings
+      </Title>
+      <Text type="secondary">
+        Update address, contact, and social links shown in the footer.
+      </Text>
+    </Space>
+  </Col>
 
-            <Col xs={24} md={10}>
-              <Row gutter={[8, 8]} justify="end">
-                <Col xs={12} sm={10}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={loadFooter}
-                    loading={loading}
-                    block
-                  >
-                    {isMobile ? "" : "Refresh"}
-                  </Button>
-                </Col>
-                <Col xs={12} sm={14}>
-                  <Button
-                   style={{backgroundColor:"#008cba",color:"white"}}
-                    icon={<SaveOutlined />}
-                    onClick={onSave}
-                    loading={saving}
-                    block
-                  >
-                    {isMobile ? "" : "Save Changes"}
-                  </Button>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
+  {/* RIGHT */}
+  <Col xs={24} md={10}>
+    <Row justify="end" gutter={[8, 8]}>
+      <Col xs={12} sm={12} md={12}>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={loadFooter}
+          loading={loading}
+          block
+        >
+          {!isMobile && "Refresh"}
+        </Button>
+      </Col>
+
+      <Col xs={12} sm={12} md={12}>
+        <Button
+          icon={<SaveOutlined />}
+          onClick={onSave}
+          loading={saving}
+          block
+          style={{ backgroundColor: "#008cba", color: "white" }}
+        >
+          {!isMobile && "Save Changes"}
+        </Button>
+      </Col>
+    </Row>
+  </Col>
+</Row>
+
 
           <Divider style={{ margin: "14px 0" }} />
 
-          {apiError ? (
+          {apiError && (
             <Alert
               type="error"
               showIcon
               message={apiError}
               style={{ marginBottom: 16, borderRadius: 12 }}
             />
-          ) : null}
+          )}
 
           {firstLoad ? (
             <Card bordered style={{ borderRadius: 12 }}>
@@ -274,11 +271,7 @@ export default function FooterSettings() {
                       { max: 500, message: "Max 500 characters" },
                     ]}
                   >
-                    <Input.TextArea
-                      rows={isMobile ? 3 : 2}
-                      placeholder="Enter address shown in footer"
-                      allowClear
-                    />
+                    <Input.TextArea rows={isMobile ? 3 : 2} allowClear />
                   </Form.Item>
                 </Col>
 
@@ -286,12 +279,9 @@ export default function FooterSettings() {
                   <Form.Item
                     label="Contact Number"
                     name="contactNo"
-                    rules={[
-                      { required: true, message: "Contact number is required" },
-                      { max: 30, message: "Max 30 characters" },
-                    ]}
+                    rules={[{ required: true }]}
                   >
-                    <Input placeholder="e.g., +91 98765 43210" allowClear />
+                    <Input allowClear />
                   </Form.Item>
                 </Col>
 
@@ -299,48 +289,36 @@ export default function FooterSettings() {
                   <Form.Item
                     label="Email"
                     name="email"
-                    rules={[
-                      { required: true, message: "Email is required" },
-                      { type: "email", message: "Enter a valid email" },
-                      { max: 120, message: "Max 120 characters" },
-                    ]}
+                    rules={[{ required: true, type: "email" }]}
                   >
-                    <Input placeholder="e.g., support@example.com" allowClear />
+                    <Input allowClear />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    label="Facebook URL"
-                    name="facebook"
-                    rules={[{ validator: validateUrlOptional }]}
-                  >
-                    <Input placeholder="https://facebook.com/..." allowClear />
+                <Col xs={24} md={6}>
+                  <Form.Item label="Facebook URL" name="facebook" rules={[{ validator: validateUrlOptional }]}>
+                    <Input allowClear />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    label="Instagram URL"
-                    name="instagram"
-                    rules={[{ validator: validateUrlOptional }]}
-                  >
-                    <Input placeholder="https://instagram.com/..." allowClear />
+                <Col xs={24} md={6}>
+                  <Form.Item label="Instagram URL" name="instagram" rules={[{ validator: validateUrlOptional }]}>
+                    <Input allowClear />
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    label="YouTube URL"
-                    name="youtube"
-                    rules={[{ validator: validateUrlOptional }]}
-                  >
-                    <Input placeholder="https://youtube.com/..." allowClear />
+                <Col xs={24} md={6}>
+                  <Form.Item label="YouTube URL" name="youtube" rules={[{ validator: validateUrlOptional }]}>
+                    <Input allowClear />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Twitter URL" name="twitter" rules={[{ validator: validateUrlOptional }]}>
+                    <Input allowClear />
                   </Form.Item>
                 </Col>
               </Row>
-
-             
             </Form>
           )}
         </Card>

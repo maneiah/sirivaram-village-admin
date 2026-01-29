@@ -280,29 +280,29 @@ export default function AdminPayments() {
   const eventPaymentsColumns = useMemo(
     () => [
       {
-        title: "#",
-        width: 60,
+        title: "S NO",
+       
         align: "center",
         render: (_, __, idx) => idx + 1,
       },
       {
         title: "Payer Name",
         dataIndex: "payerName",
-        width: 180,
+       align:"center",
         render: (v) => <Text strong>{v || "-"}</Text>,
       },
       {
         title: "Mobile",
         dataIndex: "payerMobile",
-        width: 140,
+      
         align: "center",
         render: (v) => v || "-",
       },
       {
         title: "Amount",
         dataIndex: "amount",
-        width: 120,
-        align: "right",
+       
+        align: "center",
         render: (v) => (
           <Text strong>₹ {Number(v || 0).toLocaleString("en-IN")}</Text>
         ),
@@ -310,13 +310,13 @@ export default function AdminPayments() {
       {
         title: "Paid On",
         dataIndex: "paidOnDate",
-        width: 180,
+      align:"center",
         render: (v) => <Text type="secondary">{fmtDateTime(v)}</Text>,
       },
       {
         title: "Status",
         dataIndex: "status",
-        width: 120,
+      
         align: "center",
         render: statusTag,
       },
@@ -328,7 +328,7 @@ export default function AdminPayments() {
     () => [
       {
         title: "S No",
-        width: 70,
+      
         align: "center",
         render: (_, __, idx) => (page - 1) * pageSize + idx + 1,
       },
@@ -465,47 +465,49 @@ export default function AdminPayments() {
           style={{ borderRadius: 12, boxShadow: "0 1px 10px rgba(0,0,0,0.06)" }}
           bodyStyle={{ padding: isMobile ? 12 : 20 }}
         >
-          {/* Header */}
-          <Row gutter={[12, 12]} align="middle" justify="space-between">
-            <Col xs={24} md={14}>
-              <Space direction="vertical" size={2}>
-                <Title level={4} style={{ margin: 0 }}>
-                  Payments Management
-                </Title>
-                <Text type="secondary">
-                  Verify, reject, delete and view event-wise payments.
-                </Text>
-              </Space>
-            </Col>
+         <Row gutter={[16, 16]} align="middle">
+  {/* LEFT */}
+  <Col xs={24} md={14}>
+    <Space direction="vertical" size={2}>
+      <Title level={4} style={{ margin: 0 }}>
+        Payments Management
+      </Title>
+      <Text type="secondary">
+        Verify, reject, delete and view event-wise payments.
+      </Text>
+    </Space>
+  </Col>
 
-            <Col xs={24} md={10}>
-              <Row gutter={[8, 8]} justify="end" align="middle">
-                <Col xs={24} sm={12}>
-                  <Select
-                    value={currentStatus}
-                    onChange={(value) => {
-                      setCurrentStatus(value);
-                      setPage(1);
-                    }}
-                    options={statusOptions}
-                    style={{ width: "100%" }}
-                    placeholder="Filter by status"
-                  />
-                </Col>
-                <Col xs={24} sm={12}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={() => fetchPayments(currentStatus)}
-                    loading={pageLoading}
-                    type="default"
-                    block={isMobile}
-                  >
-                    {isMobile ? "" : "Refresh"}
-                  </Button>
-                </Col>
-              </Row>
-            </Col>
-          </Row>
+  {/* RIGHT */}
+  <Col xs={24} md={10}>
+    <Row gutter={[8, 8]} justify="end">
+      <Col xs={24} sm={12}>
+        <Select
+          value={currentStatus}
+          onChange={(value) => {
+            setCurrentStatus(value);
+            setPage(1);
+          }}
+          options={statusOptions}
+          placeholder="Filter by status"
+          style={{ width: "100%" }}
+        />
+      </Col>
+
+      <Col xs={24} sm={12}>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => fetchPayments(currentStatus)}
+          loading={pageLoading}
+          block
+        >
+          {!isMobile && "Refresh"}
+        </Button>
+      </Col>
+    </Row>
+  </Col>
+</Row>
+
 
           <Divider style={{ margin: "14px 0" }} />
 
@@ -617,7 +619,7 @@ export default function AdminPayments() {
               columns={columns}
               dataSource={payments}
               rowKey="id"
-              size={isMobile ? "small" : "middle"}
+             
               scroll={{ x: "100%" }}
               loading={pageLoading}
               bordered
@@ -672,7 +674,7 @@ export default function AdminPayments() {
               dataSource={eventPayments}
               rowKey="id"
               bordered
-              size={isMobile ? "small" : "middle"}
+             
               scroll={{ x: "100%" }}
               pagination={{
                 pageSize: 8,

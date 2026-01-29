@@ -20,7 +20,6 @@ import {
   Modal,
   Row,
   Space,
-  Spin,
   Table,
   Tag,
   Tooltip,
@@ -36,11 +35,11 @@ import {
   CloseCircleOutlined,
   DeleteOutlined,
   EditOutlined,
-  EyeOutlined,
   UserOutlined,
   ExclamationCircleOutlined,
-  ClockCircleOutlined, // ✅ FIX: missing in your code
+  ClockCircleOutlined,
 } from "@ant-design/icons";
+import { motion } from "framer-motion";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
@@ -59,32 +58,94 @@ const truncateText = (v, max = 40) => {
 const statusTag = (status) => {
   if (status === "APPROVED")
     return (
-      <Tag icon={<CheckCircleOutlined />} color="success">
+      <Tag
+        icon={<CheckCircleOutlined />}
+        color="success"
+        style={{
+          borderRadius: 8,
+          padding: "4px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          border: "none",
+        }}
+      >
         APPROVED
       </Tag>
     );
   if (status === "PENDING")
     return (
-      <Tag icon={<ClockCircleOutlined />} color="warning">
+      <Tag
+        icon={<ClockCircleOutlined />}
+        color="warning"
+        style={{
+          borderRadius: 8,
+          padding: "4px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          border: "none",
+        }}
+      >
         PENDING
       </Tag>
     );
   if (status === "REJECTED")
     return (
-      <Tag icon={<CloseCircleOutlined />} color="error">
+      <Tag
+        icon={<CloseCircleOutlined />}
+        color="error"
+        style={{
+          borderRadius: 8,
+          padding: "4px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          border: "none",
+        }}
+      >
         REJECTED
       </Tag>
     );
-  return <Tag color="default">UNKNOWN</Tag>;
+  return (
+    <Tag
+      color="default"
+      style={{
+        borderRadius: 8,
+        padding: "4px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      UNKNOWN
+    </Tag>
+  );
 };
 
 const roleTag = (role) =>
   role === "ADMIN" ? (
-    <Tag icon={<UserOutlined />} color="blue">
+    <Tag
+      icon={<UserOutlined />}
+      color="blue"
+      style={{
+        borderRadius: 8,
+        padding: "4px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+        border: "none",
+      }}
+    >
       ADMIN
     </Tag>
   ) : (
-    <Tag icon={<UserOutlined />} color="cyan">
+    <Tag
+      icon={<UserOutlined />}
+      color="cyan"
+      style={{
+        borderRadius: 8,
+        padding: "4px 12px",
+        fontSize: 12,
+        fontWeight: 600,
+        border: "none",
+      }}
+    >
       USER
     </Tag>
   );
@@ -101,6 +162,7 @@ const useDebouncedValue = (value, delay = 300) => {
 export default function Users() {
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isTablet = screens.md && !screens.lg;
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -116,11 +178,11 @@ export default function Users() {
   const debouncedSearch = useDebouncedValue(search, 300);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedUser] = useState(null);
+  const [selectedUser, setSelectedUser] = useState(null);
 
   // Pagination state for correct S No
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(isMobile ? 8 : 10);
+  const [pageSize, setPageSize] = useState(isMobile ? 10 : 20);
 
   const aliveRef = useRef(true);
   useEffect(() => {
@@ -195,7 +257,6 @@ export default function Users() {
         u?.name,
         u?.mobile,
         u?.village,
-        u?.address,
         u?.role,
         u?.status,
       ]
@@ -322,49 +383,57 @@ export default function Users() {
         title: "Name",
         dataIndex: "name",
         render: (v, u) => (
-          <Space>
-            <Avatar icon={<UserOutlined />} />
-            <Space direction="vertical" size={0}>
-              <Text strong ellipsis={{ tooltip: safeText(v) }}>
+          <Space size={12}>
+            <Avatar
+              icon={<UserOutlined />}
+              style={{
+                backgroundColor: "#008cba",
+                boxShadow: "0 2px 8px rgba(22, 119, 255, 0.3)",
+              }}
+            />
+            <Space direction="vertical" size={2}>
+              <Text
+                strong
+                ellipsis={{ tooltip: safeText(v) }}
+                style={{ fontSize: isMobile ? 13 : 14 }}
+              >
                 {safeText(v)}
               </Text>
-              <Text type="secondary" style={{ fontSize: 12 }}>
+              <Text type="secondary" style={{ fontSize: 11 }}>
                 ID: {safeText(u?.id)}
               </Text>
             </Space>
           </Space>
         ),
-        ellipsis: true,
+       
       },
       {
         title: "Mobile",
         dataIndex: "mobile",
         align: "center",
         render: (v) => (
-          <Text ellipsis={{ tooltip: safeText(v) }}>{safeText(v)}</Text>
+          <Text
+            ellipsis={{ tooltip: safeText(v) }}
+            style={{ fontWeight: 500, fontFamily: "monospace" }}
+          >
+            {safeText(v)}
+          </Text>
         ),
-        responsive: ["md"],
+        responsive: ["sm"],
       },
       {
         title: "Village",
         dataIndex: "village",
         align: "center",
         render: (v) => (
-          <Text ellipsis={{ tooltip: safeText(v) }}>{safeText(v)}</Text>
+          <Text
+            ellipsis={{ tooltip: safeText(v) }}
+            style={{ fontWeight: 500 }}
+          >
+            {safeText(v)}
+          </Text>
         ),
-        responsive: ["lg"],
-      },
-      {
-        title: "Address",
-        dataIndex: "address",
-        render: (v) => (
-          <Tooltip title={safeText(v) !== "-" ? safeText(v) : ""}>
-            <Text type="secondary" ellipsis={{ tooltip: true }}>
-              {truncateText(v, isMobile ? 20 : 40)}
-            </Text>
-          </Tooltip>
-        ),
-        responsive: ["lg"],
+        responsive: ["sm"],
       },
       {
         title: "Role",
@@ -393,8 +462,11 @@ export default function Users() {
           const isPending = user.status === "PENDING";
 
           return (
-            <Space wrap size={6} style={{ justifyContent: "center" }}>
-             
+            <Space
+              wrap
+              size={isMobile ? 4 : 6}
+              style={{ justifyContent: "center", width: "100%" }}
+            >
               <Tooltip
                 title={
                   isPending ? "Approve User" : "Only PENDING can be approved"
@@ -402,12 +474,21 @@ export default function Users() {
               >
                 <Button
                   type="primary"
-                  size="small"
+                  size={isMobile ? "small" : "middle"}
                   icon={<CheckCircleOutlined />}
                   loading={approving}
                   disabled={!isPending}
                   onClick={() => confirmApprove(user)}
-                />
+                  style={{
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    boxShadow: isPending
+                      ? "0 2px 8px rgba(22, 119, 255, 0.3)"
+                      : "none",
+                  }}
+                >
+                  {!isMobile && "Approve"}
+                </Button>
               </Tooltip>
 
               <Tooltip
@@ -417,35 +498,40 @@ export default function Users() {
               >
                 <Button
                   danger
-                  size="small"
+                  size={isMobile ? "small" : "middle"}
                   icon={<CloseCircleOutlined />}
                   loading={rejecting}
                   disabled={!isPending}
                   onClick={() => confirmReject(user)}
-                />
+                  style={{
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    boxShadow: isPending
+                      ? "0 2px 8px rgba(255, 77, 79, 0.3)"
+                      : "none",
+                  }}
+                >
+                  {!isMobile && "Reject"}
+                </Button>
               </Tooltip>
 
-              <Tooltip title="Edit User">
-                <Button
-                  size="small"
-                  icon={<EditOutlined />}
-                  onClick={() =>
-                    Modal.info({
-                      title: "Coming soon",
-                      content: "Edit feature coming soon!",
-                    })
-                  }
-                />
-              </Tooltip>
+          
 
               <Tooltip title="Delete User">
                 <Button
                   danger
-                  size="small"
+                  size={isMobile ? "small" : "middle"}
                   icon={<DeleteOutlined />}
                   loading={deleting}
                   onClick={() => confirmDelete(user)}
-                />
+                  style={{
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    boxShadow: "0 2px 8px rgba(255, 77, 79, 0.2)",
+                  }}
+                >
+                  {!isMobile && "Delete"}
+                </Button>
               </Tooltip>
             </Space>
           );
@@ -464,209 +550,240 @@ export default function Users() {
   );
 
   const drawerContent = selectedUser ? (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      <Row gutter={16} align="middle">
-        <Col span={8} style={{ textAlign: "center" }}>
-          <Avatar size={80} icon={<UserOutlined />} />
-        </Col>
-        <Col span={16}>
-          <Title level={4} style={{ margin: 0 }}>
-            {safeText(selectedUser.name)}
-          </Title>
-          <Space wrap>
-            {roleTag(selectedUser.role)}
-            {statusTag(selectedUser.status)}
-          </Space>
-        </Col>
-      </Row>
-
-      <Card size="small" style={{ borderRadius: 12 }} bordered>
-        <Space direction="vertical" size={10} style={{ width: "100%" }}>
-          <div>
-            <Text type="secondary">Mobile</Text>
-            <div>
-              <Text strong>{safeText(selectedUser.mobile)}</Text>
-            </div>
-          </div>
-
-          <div>
-            <Text type="secondary">Village</Text>
-            <div>
-              <Text strong>{safeText(selectedUser.village)}</Text>
-            </div>
-          </div>
-
-          <div>
-            <Text type="secondary">Address</Text>
-            <div>
-              <Text>{safeText(selectedUser.address)}</Text>
-            </div>
-          </div>
-        </Space>
-      </Card>
-    </Space>
-  ) : null;
-
-  return (
-    <ConfigProvider
-      theme={{
-        token: {
-          borderRadius: 12,
-        },
-      }}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
     >
-      <div
-        style={{
-          width: "100%",
-          padding: isMobile ? 12 : 24,
-         
-          minHeight: "100vh",
-        }}
-      >
+      <Space direction="vertical" size={20} style={{ width: "100%" }}>
+        <Row gutter={16} align="middle">
+          <Col span={8} style={{ textAlign: "center" }}>
+            <Avatar
+              size={80}
+              icon={<UserOutlined />}
+              style={{
+                backgroundColor: "#1677ff",
+                boxShadow: "0 4px 16px rgba(22, 119, 255, 0.3)",
+              }}
+            />
+          </Col>
+          <Col span={16}>
+            <Title level={4} style={{ margin: 0, fontWeight: 700 }}>
+              {safeText(selectedUser.name)}
+            </Title>
+            <Space wrap style={{ marginTop: 8 }}>
+              {roleTag(selectedUser.role)}
+              {statusTag(selectedUser.status)}
+            </Space>
+          </Col>
+        </Row>
+
+        <Divider style={{ margin: "8px 0" }} />
+
         <Card
           bordered={false}
           style={{
-            borderRadius: 12,
-            boxShadow: "0 1px 10px rgba(0,0,0,0.06)",
+            borderRadius: 16,
+            background: "#fafafa",
+            border: "1px solid rgba(0,0,0,0.06)",
           }}
-          bodyStyle={{ padding: isMobile ? 12 : 20 }}
         >
-          <Row gutter={[12, 12]} align="middle" justify="space-between">
-            <Col xs={24} md={14}>
-              <Space direction="vertical" size={2}>
-                <Title level={4} style={{ margin: 0 }}>
+          <Space direction="vertical" size={16} style={{ width: "100%" }}>
+            <div>
+              <Text
+                type="secondary"
+                style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase" }}
+              >
+                Mobile
+              </Text>
+              <div style={{ marginTop: 4 }}>
+                <Text strong style={{ fontSize: 16, fontFamily: "monospace" }}>
+                  {safeText(selectedUser.mobile)}
+                </Text>
+              </div>
+            </div>
+
+            <Divider style={{ margin: "8px 0" }} />
+
+            <div>
+              <Text
+                type="secondary"
+                style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase" }}
+              >
+                Village
+              </Text>
+              <div style={{ marginTop: 4 }}>
+                <Text strong style={{ fontSize: 16 }}>
+                  {safeText(selectedUser.village)}
+                </Text>
+              </div>
+            </div>
+
+            {selectedUser.address && safeText(selectedUser.address) !== "-" && (
+              <>
+                <Divider style={{ margin: "8px 0" }} />
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Address
+                  </Text>
+                  <div style={{ marginTop: 4 }}>
+                    <Text style={{ fontSize: 14, lineHeight: 1.6 }}>
+                      {safeText(selectedUser.address)}
+                    </Text>
+                  </div>
+                </div>
+              </>
+            )}
+          </Space>
+        </Card>
+      </Space>
+    </motion.div>
+  ) : (
+    <div style={{ textAlign: "center", padding: "40px 20px" }}>
+      <Text type="secondary">No user selected</Text>
+    </div>
+  );
+
+return (
+  <ConfigProvider
+    theme={{
+      token: {
+        borderRadius: 12,
+        colorPrimary: "#1677ff",
+      },
+    }}
+  >
+    <div
+      style={{
+        width: "100%",
+        padding: isMobile ? "0" : isTablet ? "0 12px" : "0 20px",
+        minHeight: "100vh",
+      }}
+    >
+      <Card
+        bordered={false}
+        style={{
+          borderRadius: 20,
+          boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+          border: "1px solid rgba(0,0,0,0.06)",
+         
+        }}
+        bodyStyle={{ padding: isMobile ? 16 : isTablet ? 20 : 24 }}
+      >
+        {/* HEADER */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+        >
+          <Row gutter={[16, 16]} align="middle" justify="space-between">
+            {/* LEFT: TITLE */}
+            <Col xs={24} md={10}>
+              <Space direction="vertical" size={6}>
+                <Title
+                  level={2}
+                  style={{
+                    margin: 0,
+                    fontSize: isMobile ? 22 : isTablet ? 26 : 30,
+                    fontWeight: 800,
+                  }}
+                >
                   Users Management
                 </Title>
-                <Text type="secondary">
+                <Text type="secondary" style={{ fontSize: 14 }}>
                   Approve / reject users, view details, and search quickly.
                 </Text>
               </Space>
             </Col>
 
-            <Col xs={24} md={10}>
-              <Row gutter={[8, 8]} justify="end">
-                <Col xs={24} sm={16}>
-                  <Input
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    placeholder="Search by name, mobile, village, role, status..."
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </Col>
+            {/* RIGHT: SEARCH + REFRESH */}
+            <Col xs={24} md={14}>
+              <Space
+                size={12}
+                style={{
+                  width: "100%",
+                  justifyContent: isMobile ? "flex-start" : "flex-end",
+                }}
+              >
+                <Input
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  placeholder="Search by name, mobile, village, role, status..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  size="large"
+                  style={{
+                    width: isMobile ? "100%" : 320,
+                    borderRadius: 12,
+                  }}
+                />
 
-                <Col xs={24} sm={8}>
-                  <Tooltip title="Refresh users list">
-                    <Button
-                     
-                      icon={<ReloadOutlined />}
-                      onClick={fetchUsers}
-                      loading={loading}
-                      block
-                    >
-                      Refresh
-                    </Button>
-                  </Tooltip>
-                </Col>
-              </Row>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={fetchUsers}
+                  loading={loading}
+                
+                 
+                  style={{
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    height: 44,
+                  }}
+                >
+                  {isMobile ? "Refresh" : "Refresh Data"}
+                </Button>
+              </Space>
             </Col>
           </Row>
+        </motion.div>
 
-          <Divider style={{ margin: "14px 0" }} />
+        <Divider style={{ margin: "20px 0" }} />
 
-          {error ? (
-            <Alert
-              type="error"
-              showIcon
-              message="Couldn’t load users"
-              description={
-                <Space direction="vertical" size={8}>
-                  <Text>{error}</Text>
-                  <Button
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    onClick={fetchUsers}
-                  >
-                    Try Again
-                  </Button>
-                </Space>
-              }
-              style={{ marginBottom: 12, borderRadius: 12 }}
-            />
-          ) : null}
-
-          {firstLoad ? (
-            <Card bordered style={{ borderRadius: 12 }}>
-              <Skeleton active paragraph={{ rows: 6 }} />
-            </Card>
-          ) : filteredUsers.length === 0 ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <Space direction="vertical" style={{ textAlign: "center" }}>
-                  <Text>No users found</Text>
-                  {debouncedSearch ? (
-                    <Text type="secondary">Try adjusting your search.</Text>
-                  ) : null}
-                  <Button  style={{backgroundColor:"#008cba",color:"white"}} onClick={fetchUsers}>
-                    Refresh
-                  </Button>
-                </Space>
-              }
-            />
-          ) : (
-            <Table
-              columns={columns}
-              dataSource={filteredUsers}
-              rowKey={(r) => r.id}
-              bordered
-              loading={loading}
-              pagination={{
+        {/* REST OF YOUR CODE — UNCHANGED */}
+        {error ? (
+          <Alert
+            type="error"
+            showIcon
+            message="Couldn't load users"
+            description={error}
+          />
+        ) : firstLoad ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredUsers}
+            rowKey="id"
+            loading={loading}
+             pagination={{
                 current: page,
                 pageSize,
                 showSizeChanger: true,
-                showQuickJumper: true,
                 onChange: (p, ps) => {
                   setPage(p);
                   setPageSize(ps);
                 },
                 showTotal: (total, range) =>
-                  `Showing ${range[0]}-${range[1]} of ${total} users`,
+                  `${range[0]}-${range[1]} of ${total}`,
               }}
-              size={isMobile ? "small" : "middle"}
-              scroll={{ x: "100%" }}
-              locale={{ emptyText: "No data" }}
-            />
-          )}
-        </Card>
+            scroll={{ x: "100%" }}
+            className="users-table"
+            bordered
+          />
+        )}
+      </Card>
+    </div>
+  </ConfigProvider>
+);
 
-        <Drawer
-          title={
-            <Space>
-              <UserOutlined />
-              <span>User Details</span>
-            </Space>
-          }
-          open={drawerOpen}
-          onClose={() => setDrawerOpen(false)}
-          width={isMobile ? "100%" : 480}
-          destroyOnClose
-          footer={
-            <Button
-              onClick={() => setDrawerOpen(false)}
-              type="primary"
-              block={isMobile}
-            >
-              Close
-            </Button>
-          }
-        >
-          {drawerContent}
-        </Drawer>
-      </div>
-    </ConfigProvider>
-  );
 }

@@ -27,7 +27,7 @@ const App = () => {
           {/* ADMIN ROUTES */}
           <Route element={<AdminPanelLayoutTest />}>
             {/* choose one */}
-            <Route index element={<Navigate to="/reports" replace />} />
+            <Route index element={<Navigate to="/login" replace />} />
             {/* or: <Route index element={<Navigate to="/login" replace />} /> */}
 
             <Route path="reports" element={<AdminReportSummary />} />

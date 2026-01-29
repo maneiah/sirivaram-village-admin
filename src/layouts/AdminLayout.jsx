@@ -52,17 +52,18 @@ const ADMIN_MENU = [
     to: "/users",
   },
   {
-    key: "/blogs",
-    label: "Blog Management",
-    icon: <ReadOutlined />,
-    to: "/blogs",
-  },
-  {
     key: "/events",
     label: "Event Management",
     icon: <CalendarOutlined />,
     to: "/events",
   },
+  {
+    key: "/blogs",
+    label: "Blog Management",
+    icon: <ReadOutlined />,
+    to: "/blogs",
+  },
+  
   {
     key: "/gallery",
     label: "Gallery Management",

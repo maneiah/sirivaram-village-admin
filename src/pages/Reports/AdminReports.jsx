@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Button,
@@ -27,103 +28,90 @@ import {
   DollarOutlined,
   ExclamationCircleOutlined,
   InfoCircleOutlined,
-  ArrowLeftOutlined,
   SettingOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
-import { motion } from "framer-motion"; // Add framer-motion for subtle animations
+import { motion } from "framer-motion";
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
-const DASHBOARD_API =
-  "https://sirivaram-backed.onrender.com/api/admin/dashboard/summary";
+const DASHBOARD_API = "https://sirivaram-backed.onrender.com/api/admin/dashboard/summary";
 
-/* Helpers */
-const toNumber = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
+const toNumber = (v) => Number(v) || 0;
 const fmtNumber = (num) => toNumber(num).toLocaleString("en-IN");
 
 const statusMeta = (status = "") => {
   const s = String(status).toLowerCase();
-  if (s === "approved" || s === "verified")
-    return { color: "success", icon: <CheckCircleOutlined /> };
-  if (s === "pending")
-    return { color: "warning", icon: <ClockCircleOutlined /> };
-  if (s === "rejected")
-    return { color: "error", icon: <CloseCircleOutlined /> };
+  if (["approved", "verified"].includes(s)) return { color: "success", icon: <CheckCircleOutlined /> };
+  if (s === "pending") return { color: "warning", icon: <ClockCircleOutlined /> };
+  if (s === "rejected") return { color: "error", icon: <CloseCircleOutlined /> };
   return { color: "default", icon: null };
 };
 
-const StatCard = ({
-  title,
-  value,
-  icon,
-  valueColor,
-  hint,
-  statusLabel,
-  tooltip,
-  onClick, // Add click handler for interactivity
-}) => {
+const StatCard = ({ title, value, icon, valueColor, hint, statusLabel, tooltip, onClick, bgColor = "#ffffff" }) => {
   const { color, icon: statusIcon } = statusMeta(statusLabel);
   const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   return (
     <Col xs={24} sm={12} md={12} lg={8} xl={6}>
       <motion.div
-        whileHover={{ y: -2, scale: 1.02 }}
+        whileHover={{ y: -4, scale: 1.015 }}
         whileTap={{ scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 300 }}
+        transition={{ type: "spring", stiffness: 400, damping: 25 }}
       >
         <Card
-          bordered
-          style={{
-            borderRadius: 16,
-            height: "100%",
-            cursor: onClick ? "pointer" : "default",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-            transition: "box-shadow 0.3s ease",
-          }}
-          bodyStyle={{ padding: screens.xs ? 12 : 16 }}
+          bordered={false}
           hoverable={!!onClick}
           onClick={onClick}
+          style={{
+            height: "100%",
+            borderRadius: 16,
+            background: bgColor,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.04)",
+            transition: "all 0.3s ease",
+          }}
+          bodyStyle={{ padding: isMobile ? 16 : 20 }}
         >
-          <Space direction="vertical" size={8} style={{ width: "100%" }}>
-            <Space align="center" style={{ justifyContent: "space-between" }}>
-              <Text strong style={{ fontSize: screens.xs ? 14 : 16 }}>
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <Space align="center" style={{ justifyContent: "space-between", width: "100%" }}>
+              <Text strong style={{ fontSize: isMobile ? 14 : 15, color: "rgba(0,0,0,0.88)" }}>
                 {title}
               </Text>
               <Tooltip title={tooltip || title}>
-                <InfoCircleOutlined
-                  style={{ color: "rgba(0,0,0,0.45)", fontSize: 16 }}
-                />
+                <InfoCircleOutlined style={{ color: "rgba(0,0,0,0.45)", fontSize: isMobile ? 14 : 16 }} />
               </Tooltip>
             </Space>
 
             <Statistic
               value={fmtNumber(value)}
-              prefix={icon}
+              prefix={<span style={{ fontSize: isMobile ? 22 : 28, color: valueColor }}>{icon}</span>}
               valueStyle={{
-                fontWeight: 800,
+                fontSize: isMobile ? 28 : 36,
+                fontWeight: 700,
                 color: valueColor,
-                fontSize: screens.xs ? 24 : 28,
                 lineHeight: 1.1,
               }}
             />
 
-            <Space size={6} wrap>
-              {statusLabel ? (
-                <Tag icon={statusIcon} color={color} size="small">
+            <Space size={8} wrap>
+              {statusLabel && (
+                <Tag
+                  icon={statusIcon}
+                  color={color}
+                  style={{ borderRadius: 6, padding: "0 8px", fontSize: isMobile ? 11 : 12, border: "none" }}
+                >
                   {statusLabel}
                 </Tag>
-              ) : null}
-              {hint ? (
-                <Text type="secondary" style={{ fontSize: 12 }}>
+              )}
+              {hint && (
+                <Text type="secondary" style={{ fontSize: isMobile ? 11 : 12 }}>
                   {hint}
                 </Text>
-              ) : null}
+              )}
+              {onClick && <RightOutlined style={{ marginLeft: "auto", color: "rgba(0,0,0,0.35)", fontSize: 12 }} />}
             </Space>
           </Space>
         </Card>
@@ -132,9 +120,11 @@ const StatCard = ({
   );
 };
 
-export default function AdminDashboardSummary() {
+export default function AdminReports() {
+  const navigate = useNavigate();
   const screens = useBreakpoint();
   const isMobile = !screens.md;
+  const isTablet = screens.md && !screens.lg;
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -143,12 +133,10 @@ export default function AdminDashboardSummary() {
   const [lastUpdated, setLastUpdated] = useState(null);
 
   const lastUpdatedText = useMemo(() => {
-    if (!lastUpdated) return "";
-    const now = new Date();
-    const diffMs = now - lastUpdated;
-    const diffMin = Math.floor(diffMs / 60000);
+    if (!lastUpdated) return "Not refreshed yet";
+    const diffMin = Math.floor((Date.now() - lastUpdated) / 60000);
     if (diffMin < 1) return "Just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 60) return `${diffMin} min ago`;
     return lastUpdated.toLocaleString("en-IN", {
       day: "2-digit",
       month: "short",
@@ -158,93 +146,49 @@ export default function AdminDashboardSummary() {
     });
   }, [lastUpdated]);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("token");
     return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  }, []);
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
     setError("");
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     try {
       const res = await fetch(DASHBOARD_API, {
-        headers: { ...getAuthHeaders() },
+        headers: getAuthHeaders(),
         signal: controller.signal,
       });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(
-          `Unable to load dashboard summary (HTTP ${res.status})${
-            text ? ` - ${text}` : ""
-          }`,
-        );
-      }
-
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       setData(json);
       setLastUpdated(new Date());
-      message.success("Dashboard updated successfully!");
+      message.success("Dashboard refreshed");
     } catch (e) {
-      setError(
-        e?.name === "AbortError"
-          ? "Request timed out. Please check your connection and try again."
-          : e?.message || "Failed to load dashboard summary.",
-      );
+      setError(e.name === "AbortError" ? "Request timeout" : e.message || "Failed to load data");
       setData(null);
     } finally {
       clearTimeout(timeout);
       setLoading(false);
       setFirstLoad(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
 
-  // Mock navigation handlers for quick actions (replace with actual routes)
-  const handleNavigate = (path) => {
-    message.info(`Navigating to ${path}...`); // Placeholder
-    // e.g., navigate(path);
-  };
+  const handleNavigate = useCallback((path) => navigate(path), [navigate]);
 
-  const Section = ({ title, children, extra }) => (
-    <Card
-      bordered
-      style={{ borderRadius: 16, marginBottom: 16 }}
-      bodyStyle={{ padding: isMobile ? 16 : 20 }}
-    >
-      <Space direction="vertical" size={12} style={{ width: "100%" }}>
-        <Space align="center" justify="space-between">
-          <Title level={4} style={{ margin: 0, fontSize: isMobile ? 18 : 20 }}>
-            {title}
-          </Title>
-          {extra}
-        </Space>
-        <Row gutter={[12, 12]}>{children}</Row>
-      </Space>
-    </Card>
-  );
-
-  // Animation variants for fade-in
   const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { staggerChildren: 0.1, delayChildren: 0.2 },
-    },
+    hidden: { opacity: 0, y: 16 },
+    visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.08, delayChildren: 0.15 } },
   };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0 },
-  };
+  const itemVariants = { hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } };
 
   return (
     <ConfigProvider
@@ -252,138 +196,81 @@ export default function AdminDashboardSummary() {
         token: {
           borderRadius: 12,
           colorPrimary: "#1677ff",
+          colorBgContainer: "#ffffff",
         },
       }}
     >
-      <div style={{ width: "100%", padding: isMobile ? "0 8px" : "0 16px" }}>
-        {/* HEADER */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <Card
-            bordered={false}
-            style={{
-              borderRadius: 16,
-              background: "linear-gradient(135deg, #ffffff 0%, #ffffff 100%)",
-              marginBottom: 16,
-            }}
-            bodyStyle={{ padding: isMobile ? 16 : 20 }}
-          >
-            <Row gutter={[12, 12]} align="middle" justify="space-between">
-              <Col xs={20} md={16}>
-                <Space direction="vertical" size={4}>
-                  <Title level={3}>Admin Dashboard Summary</Title>
-                  <Space size={8} wrap>
-                    {lastUpdatedText ? (
-                      <Tag
-                        icon={<ClockCircleOutlined />}
-                        color="blue"
-                        size="small"
-                      >
-                        Last updated: <Text strong>{lastUpdatedText}</Text>
-                      </Tag>
-                    ) : (
-                      <Tag color="default" size="small">
-                        Not refreshed yet
-                      </Tag>
-                    )}
-                    <Tag icon={<ReloadOutlined />} color="green" size="small">
-                      Live Data
-                    </Tag>
-                  </Space>
+      <div style={{ padding: isMobile ? "16px 12px" : isTablet ? "20px 16px" : "24px 32px", maxWidth: "100%" }}>
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+          <Row gutter={[16, 16]} align="middle" justify="space-between">
+            <Col xs={24} md={16}>
+              <Space direction="vertical" size={8}>
+                <Title
+                  level={isMobile ? 3 : 2}
+                  style={{ margin: 0, fontWeight: 800, color: "rgba(0,0,0,0.88)" }}
+                >
+                  Admin Dashboard
+                </Title>
+                <Space size={8} wrap>
+                  <Tag icon={<ClockCircleOutlined />} color="default" style={{ borderRadius: 8 }}>
+                    Last updated: <Text strong>{lastUpdatedText}</Text>
+                  </Tag>
+                  <Tag color="blue" style={{ borderRadius: 8 }}>Live</Tag>
                 </Space>
-              </Col>
-
-              <Col xs={4} md={8}>
-                <Space style={{ width: "100%", justifyContent: "flex-end" }}>
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={fetchSummary}
-                    loading={loading}
-                    size={isMobile ? "middle" : "large"}
-                    block={isMobile}
-                  >
-                    Refresh
-                  </Button>
-                </Space>
-              </Col>
-            </Row>
-          </Card>
+              </Space>
+            </Col>
+            <Col xs={24} md={8} style={{ textAlign: isMobile ? "left" : "right" }}>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined />}
+                loading={loading}
+                onClick={fetchSummary}
+                size={isMobile ? "middle" : "large"}
+                style={{ borderRadius: 10, fontWeight: 600 }}
+              >
+                {isMobile ? "Refresh" : "Refresh Dashboard"}
+              </Button>
+            </Col>
+          </Row>
         </motion.div>
 
-        {/* ERROR */}
-        {error ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ marginBottom: 16 }}
-          >
-            <Alert
-              style={{ borderRadius: 12 }}
-              type="error"
-              showIcon
-              message="Dashboard Load Error"
-              description={
-                <Space direction="vertical" size={8} style={{ width: "100%" }}>
-                  <Text>{error}</Text>
-                  <Button
-                    onClick={fetchSummary}
-                    loading={loading}
-                    type="primary"
-                    icon={<ReloadOutlined />}
-                    size="small"
-                  >
-                    Retry Now
-                  </Button>
-                </Space>
-              }
-            />
-          </motion.div>
-        ) : null}
+        <Divider style={{ margin: "20px 0" }} />
 
-        {/* FIRST LOAD SKELETON */}
-        {firstLoad && (
-          <Card style={{ marginBottom: 16, borderRadius: 16 }} bordered={false}>
-            <Skeleton active paragraph={{ rows: 8 }} avatar={false} />
-          </Card>
+        {/* Error */}
+        {error && (
+          <Alert
+            type="error"
+            showIcon
+            message="Error Loading Dashboard"
+            description={error}
+            action={
+              <Button type="primary" danger onClick={fetchSummary} loading={loading}>
+                Retry
+              </Button>
+            }
+            style={{ marginBottom: 24, borderRadius: 12 }}
+          />
         )}
 
-        {/* LOADING OVERLAY (after first load) */}
-        {!firstLoad && loading && (
-          <Card
-            style={{ marginBottom: 16, borderRadius: 16, textAlign: "center" }}
-            bordered={false}
-          >
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <Spin size="large" />
-              <Text strong type="secondary">
-                Refreshing dashboard...
-              </Text>
-              <Text type="secondary">Please wait a moment</Text>
-            </Space>
+        {/* Loading / Skeleton */}
+        {firstLoad ? (
+          <Skeleton active paragraph={{ rows: 10 }} />
+        ) : loading && !firstLoad ? (
+          <Card style={{ textAlign: "center", padding: 40, borderRadius: 16 }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16 }}>
+              <Text strong>Refreshing data...</Text>
+            </div>
           </Card>
-        )}
-
-        {/* DATA */}
-        {data && !firstLoad && (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            style={{ marginBottom: 16 }}
-          >
+        ) : data ? (
+          <motion.div variants={containerVariants} initial="hidden" animate="visible">
+            {/* Users Section */}
             <Section
               title="Users Overview"
               extra={
-                <Button
-                  type="link"
-                  icon={<SettingOutlined />}
-                  size="small"
-                  onClick={() => handleNavigate("/admin/users")}
-                >
-                  Manage All
+                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/users")}>
+                  Manage Users
                 </Button>
               }
             >
@@ -392,13 +279,9 @@ export default function AdminDashboardSummary() {
                 value={data.totalUsers}
                 icon={<UserOutlined />}
                 valueColor="#1677ff"
-                tooltip="Total registered users across the platform"
-                onClick={() => handleNavigate("/admin/users")}
-                cardStyle={{
-                  // ✅ Added: Neutral blue bg for overview
-                  background: "#f0f8ff",
-                  border: "1px solid #1890ff",
-                }}
+                tooltip="Total registered users"
+                onClick={() => handleNavigate("/users")}
+                bgColor="#e6f7ff"
               />
               <StatCard
                 title="Pending Users"
@@ -406,14 +289,9 @@ export default function AdminDashboardSummary() {
                 icon={<ExclamationCircleOutlined />}
                 valueColor="#faad14"
                 statusLabel="Pending"
-                tooltip="Users awaiting approval – review soon"
-                hint="Needs action"
-                onClick={() => handleNavigate("/admin/users?status=pending")}
-                cardStyle={{
-                  // ✅ Added: Light yellow bg for pending
-                  background: "#fffbe6",
-                  border: "1px solid #faad14",
-                }}
+                hint="Action required"
+                onClick={() => handleNavigate("/users")}
+                bgColor="#fff7e6"
               />
               <StatCard
                 title="Approved Users"
@@ -421,251 +299,116 @@ export default function AdminDashboardSummary() {
                 icon={<CheckCircleOutlined />}
                 valueColor="#52c41a"
                 statusLabel="Approved"
-                tooltip="Active and verified users"
-                hint="All set"
-                onClick={() => handleNavigate("/admin/users?status=approved")}
-                cardStyle={{
-                  // ✅ Added: Light green bg for approved
-                  background: "#f6ffed",
-                  border: "1px solid #52c41a",
-                }}
+                onClick={() => handleNavigate("/users")}
+                bgColor="#f6ffed"
               />
-              {/* ✅ ADDED: Rejected Users StatCard for complete User Overview */}
               <StatCard
                 title="Rejected Users"
-                value={toNumber(data.rejectedUsers || 0)} // Fallback to 0 if not in API response
+                value={data.rejectedUsers}
                 icon={<CloseCircleOutlined />}
                 valueColor="#ff4d4f"
                 statusLabel="Rejected"
-                tooltip="Users that were declined during approval"
-                hint="Review logs"
-                onClick={() => handleNavigate("/admin/users?status=rejected")}
-                cardStyle={{
-                  // ✅ Added: Light red bg for rejected
-                  background: "#fff2e8",
-                  border: "1px solid #ff4d4f",
-                }}
+                onClick={() => handleNavigate("/users")}
+                bgColor="#fff1f0"
               />
             </Section>
 
-            {/* ✅ ADDED/EXPANDED: Events Overview with additional views (assuming API fields; fallback to 0) */}
+            {/* Events Section */}
             <Section
               title="Events Overview"
               extra={
-                <Button
-                  type="link"
-                  icon={<SettingOutlined />}
-                  size="small"
-                  onClick={() => handleNavigate("/admin/events")}
-                >
-                  Manage All
+                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/events")}>
+                  Manage Events
                 </Button>
               }
             >
-              <StatCard
-                title="Total Events"
-                value={data.totalEvents}
-                icon={<CalendarOutlined />}
-                valueColor="#722ed1"
-                tooltip="All events created and managed"
-                onClick={() => handleNavigate("/admin/events")}
-              />
-              {/* ✅ ADDED: Additional Event Stats for better overview (fallback to 0 if not in API) */}
-              <StatCard
-                title="Active Events"
-                value={toNumber(data.activeEvents || 0)}
-                icon={<CheckCircleOutlined />}
-                valueColor="#52c41a"
-                statusLabel="Active"
-                tooltip="Ongoing or upcoming events"
-                hint="Monitor closely"
-                onClick={() => handleNavigate("/admin/events?status=active")}
-              />
-              <StatCard
-                title="Completed Events"
-                value={toNumber(data.completedEvents || 0)}
-                icon={<CheckCircleOutlined />}
-                valueColor="#1677ff"
-                tooltip="Events that have finished"
-                hint="Archive if needed"
-                onClick={() => handleNavigate("/admin/events?status=completed")}
-              />
-              <StatCard
-                title="Pending Events"
-                value={toNumber(data.pendingEvents || 0)}
-                icon={<ExclamationCircleOutlined />}
-                valueColor="#faad14"
-                statusLabel="Pending"
-                tooltip="Events awaiting approval or setup"
-                hint="Review soon"
-                onClick={() => handleNavigate("/admin/events?status=pending")}
-              />
+              <StatCard title="Total Events" value={data.totalEvents} icon={<CalendarOutlined />} valueColor="#722ed1" onClick={() => handleNavigate("/events")} bgColor="#f9f0ff" />
+              <StatCard title="Active Events" value={toNumber(data.activeEvents)} icon={<CheckCircleOutlined />} valueColor="#52c41a" statusLabel="Active" onClick={() => handleNavigate("/events")} bgColor="#f6ffed" />
+              <StatCard title="Completed Events" value={toNumber(data.completedEvents)} icon={<CheckCircleOutlined />} valueColor="#1677ff" onClick={() => handleNavigate("/events")} bgColor="#e6f7ff" />
+              <StatCard title="Pending Events" value={toNumber(data.pendingEvents)} icon={<ExclamationCircleOutlined />} valueColor="#faad14" statusLabel="Pending" onClick={() => handleNavigate("/events")} bgColor="#fff7e6" />
             </Section>
 
-            {/* Payments Overview remains the same as requested */}
+            {/* Payments Section */}
             <Section
               title="Payments Overview"
               extra={
-                <Button
-                  type="link"
-                  icon={<SettingOutlined />}
-                  size="small"
-                  onClick={() => handleNavigate("/admin/payments")}
-                >
-                  Manage All
+                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/payments")}>
+                  Manage Payments
                 </Button>
               }
             >
-              <StatCard
-                title="Total Payments"
-                value={data.totalPayments}
-                icon={<DollarOutlined />}
-                valueColor="#1677ff"
-                tooltip="All payment transactions recorded"
-                onClick={() => handleNavigate("/admin/payments")}
-              />
-              <StatCard
-                title="Pending Payments"
-                value={data.pendingPayments}
-                icon={<ExclamationCircleOutlined />}
-                valueColor="#faad14"
-                statusLabel="Pending"
-                tooltip="Payments requiring verification"
-                hint="Prioritize these"
-                onClick={() => handleNavigate("/admin/payments?status=pending")}
-              />
-              <StatCard
-                title="Verified Payments"
-                value={data.verifiedPayments}
-                icon={<CheckCircleOutlined />}
-                valueColor="#52c41a"
-                statusLabel="Verified"
-                tooltip="Successfully processed payments"
-                hint="Confirmed"
-                onClick={() =>
-                  handleNavigate("/admin/payments?status=verified")
-                }
-              />
-              <StatCard
-                title="Rejected Payments"
-                value={data.rejectedPayments}
-                icon={<CloseCircleOutlined />}
-                valueColor="#ff4d4f"
-                statusLabel="Rejected"
-                tooltip="Payments that were declined"
-                hint="Review logs"
-                onClick={() =>
-                  handleNavigate("/admin/payments?status=rejected")
-                }
-              />
+              <StatCard title="Total Payments" value={data.totalPayments} icon={<DollarOutlined />} valueColor="#1677ff" onClick={() => handleNavigate("/payments")} bgColor="#e6f7ff" />
+              <StatCard title="Pending Payments" value={data.pendingPayments} icon={<ExclamationCircleOutlined />} valueColor="#faad14" statusLabel="Pending" onClick={() => handleNavigate("/payments")} bgColor="#fff7e6" />
+              <StatCard title="Verified Payments" value={data.verifiedPayments} icon={<CheckCircleOutlined />} valueColor="#52c41a" statusLabel="Verified" onClick={() => handleNavigate("/payments")} bgColor="#f6ffed" />
+              <StatCard title="Rejected Payments" value={data.rejectedPayments} icon={<CloseCircleOutlined />} valueColor="#ff4d4f" statusLabel="Rejected" onClick={() => handleNavigate("/payments")} bgColor="#fff1f0" />
             </Section>
 
+            {/* Quick Actions */}
             <motion.div variants={itemVariants}>
-              <Card bordered style={{ borderRadius: 16 }}>
-                <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                  <Space align="center">
-                    <Title
-                      level={4}
-                      style={{ margin: 0, fontSize: isMobile ? 18 : 20 }}
-                    >
-                      Quick Actions
-                    </Title>
-                    <Text type="secondary" style={{ fontSize: 14 }}>
-                      Jumpstart your workflow with these shortcuts
-                    </Text>
-                  </Space>
-                  <Divider style={{ margin: "12px 0" }} />
-                  <Row gutter={[8, 8]}>
-                    <Col xs={24} sm={12} md={8}>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+              <Card style={{ borderRadius: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+                <Title level={4} style={{ marginBottom: 16 }}>Quick Actions</Title>
+                <Row gutter={[12, 12]}>
+                  {[
+                    { icon: <UserOutlined />, text: "Manage Users", path: "/users" },
+                    { icon: <CalendarOutlined />, text: "Manage Events", path: "/events" },
+                    { icon: <DollarOutlined />, text: "Verify Payments", path: "/payments" },
+                  ].map((item, i) => (
+                    <Col xs={24} sm={8} key={i}>
+                      <Button
+                        block
+                       
+                        icon={item.icon}
+                        size="large"
+                        onClick={() => handleNavigate(item.path)}
+                        style={{ height: 52, fontWeight: 600,backgroundColor:"#008cba",color:"white", borderRadius: 10 }}
                       >
-                        <Button
-                          block
-                          type="primary"
-                          ghost
-                          icon={<UserOutlined />}
-                          size="large"
-                          onClick={() => handleNavigate("/admin/users")}
-                          style={{ borderRadius: 12, height: 48 }}
-                        >
-                          Manage Users
-                        </Button>
-                      </motion.div>
+                        {item.text}
+                      </Button>
                     </Col>
-                    <Col xs={24} sm={12} md={8}>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Button
-                          block
-                          type="primary"
-                          ghost
-                          icon={<CalendarOutlined />}
-                          size="large"
-                          onClick={() => handleNavigate("/admin/events")}
-                          style={{ borderRadius: 12, height: 48 }}
-                        >
-                          Manage Events
-                        </Button>
-                      </motion.div>
-                    </Col>
-                    <Col xs={24} sm={12} md={8}>
-                      <motion.div
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <Button
-                          block
-                          type="primary"
-                          ghost
-                          icon={<DollarOutlined />}
-                          size="large"
-                          onClick={() => handleNavigate("/admin/payments")}
-                          style={{ borderRadius: 12, height: 48 }}
-                        >
-                          Verify Payments
-                        </Button>
-                      </motion.div>
-                    </Col>
-                  </Row>
-                </Space>
+                  ))}
+                </Row>
               </Card>
             </motion.div>
           </motion.div>
-        )}
-
-        {/* EMPTY */}
-        {!loading && !data && !error && !firstLoad && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{ textAlign: "center", marginTop: 32 }}
-          >
-            <Card
-              style={{ borderRadius: 16, maxWidth: 400, margin: "0 auto" }}
-              bordered={false}
-            >
-              <Space direction="vertical" size={16}>
-                <Text type="secondary" style={{ fontSize: 16 }}>
-                  No data available yet.
-                </Text>
-                <Button
-                  type="primary"
-                  size="large"
-                  onClick={fetchSummary}
-                  icon={<ReloadOutlined />}
-                  style={{ borderRadius: 12 }}
-                >
-                  Load Dashboard
-                </Button>
-              </Space>
+        ) : (
+          !loading && !firstLoad && (
+            <Card style={{ textAlign: "center", padding: 40, borderRadius: 16 }}>
+              <Text type="secondary" style={{ fontSize: 16, display: "block", marginBottom: 16 }}>
+                No dashboard data available yet.
+              </Text>
+              <Button type="primary" onClick={fetchSummary} icon={<ReloadOutlined />}>
+                Load Data
+              </Button>
             </Card>
-          </motion.div>
+          )
         )}
       </div>
     </ConfigProvider>
   );
 }
+
+const Section = ({ title, children, extra }) => {
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
+
+  return (
+    <Card
+      bordered={false}
+      style={{
+        marginBottom: 24,
+        borderRadius: 16,
+        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+      }}
+    >
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        <Space align="center" style={{ justifyContent: "space-between", width: "100%", flexWrap: "wrap" }}>
+          <Title level={4} style={{ margin: 0, fontWeight: 700 }}>
+            {title}
+          </Title>
+          {extra}
+        </Space>
+        <Row gutter={[16, 16]}>{children}</Row>
+      </Space>
+    </Card>
+  );
+};
