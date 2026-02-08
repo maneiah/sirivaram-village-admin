@@ -19,6 +19,7 @@ import {
   InputNumber,
   Modal,
   Row,
+  Select,
   Space,
   Spin,
   Table,
@@ -27,7 +28,9 @@ import {
   Typography,
   message,
   Divider,
+  Upload,
 } from "antd";
+import axios from "axios";
 import {
   PlusOutlined,
   ReloadOutlined,
@@ -39,6 +42,7 @@ import {
   PictureOutlined,
   VideoCameraOutlined,
   CalendarOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -93,6 +97,7 @@ export default function AdminGallery() {
   const [deleteId, setDeleteId]       = useState(null);
 
   const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState(null);
   const debouncedSearch = useDebouncedValue(search);
 
   const [page, setPage] = useState(1);
@@ -101,9 +106,11 @@ export default function AdminGallery() {
   const [modalOpen, setModalOpen] = useState(false);
   const [mode, setMode] = useState("create"); // "create" | "edit"
   const [form, setForm] = useState({ ...emptyForm });
+  const [uploading, setUploading] = useState(false);
+
 
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewItem, setPreviewItem] = useState(null);
+  const [previewItem,] = useState(null);
 
   const alive = useRef(true);
 
@@ -125,7 +132,7 @@ export default function AdminGallery() {
       const data = await res.json();
       if (alive.current) setItems(Array.isArray(data) ? data : []);
     } catch (err) {
-      message.error("Could not load gallery items");
+      message.error(err.message || "Could not load gallery items");
       if (alive.current) setItems([]);
     } finally {
       if (alive.current) setLoading(false);
@@ -134,16 +141,30 @@ export default function AdminGallery() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
+  const availableYears = useMemo(() => {
+    const years = [...new Set(items.map(item => item.year).filter(Boolean))];
+    return years.sort((a, b) => b - a);
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(item =>
-      [item.title, item.description, String(item.year || "")]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [items, debouncedSearch]);
+    let result = items;
+    
+    if (q) {
+      result = result.filter(item =>
+        [item.title, item.description, String(item.year || "")]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    
+    if (yearFilter) {
+      result = result.filter(item => item.year === yearFilter);
+    }
+    
+    return result;
+  }, [items, debouncedSearch, yearFilter]);
 
   const openCreate = () => {
     setMode("create");
@@ -164,10 +185,10 @@ export default function AdminGallery() {
     setModalOpen(true);
   };
 
-  const openPreview = (item) => {
-    setPreviewItem(item);
-    setPreviewOpen(true);
-  };
+  // const openPreview = (item) => {
+  //   setPreviewItem(item);
+  //   setPreviewOpen(true);
+  // };
 
   const validate = () => {
     if (!trimOrEmpty(form.title))       return "Title is required";
@@ -177,6 +198,32 @@ export default function AdminGallery() {
       return "Year should be between 1900–2100";
     return "";
   };
+
+  const handleImageUpload = async (file) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await axios.post(
+        "https://api.imgbb.com/1/upload?key=f5435f6feb6a01f1128a892cd748a25c",
+        formData
+      );
+      const url = res?.data?.data?.url || res?.data?.data?.display_url;
+      if (url) {
+        setForm(p => ({ ...p, imageUrl: url }));
+        message.success("Image uploaded successfully!");
+      } else {
+        message.error("Upload failed - no URL returned");
+      }
+    } catch (err) {
+      message.error(err.message || "Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+    return false;
+  };
+
+
 
   const save = async () => {
     const err = validate();
@@ -341,56 +388,69 @@ export default function AdminGallery() {
     >
       <div style={{ padding: isMobile ? "16px 12px" : "24px", minHeight: "100vh" }}>
         <Card bordered={false} style={{ borderRadius: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-        <Row gutter={[16, 16]} align="middle">
-  {/* LEFT */}
-  <Col xs={24} md={12}>
-    <Space direction="vertical" size={4}>
-      <Title level={4} style={{ margin: 0, color: "#008cba" }}>
-        Gallery Management
-      </Title>
-      <Text type="secondary">
-        Add, edit and organize images & videos by year
-      </Text>
-    </Space>
-  </Col>
+          {/* Header */}
+          <Row gutter={[16, 16]} align="middle">
+            <Col xs={24}>
+              <Space direction="vertical" size={4}>
+                <Title level={4} style={{ margin: 0, color: "#008cba" }}>
+                  Gallery Management
+                </Title>
+                <Text type="secondary">
+                  Add, edit and organize images & videos by year
+                </Text>
+              </Space>
+            </Col>
+          </Row>
 
-  {/* RIGHT */}
-  <Col xs={24} md={12}>
-    <Row justify="end" gutter={[8, 8]}>
-      <Col xs={24} sm={14} md={10} lg={8}>
-        <Input
-          placeholder="Search title, description, year..."
-          prefix={<SearchOutlined />}
-          allowClear
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </Col>
+          {/* Filters & Actions Row */}
+          <Row gutter={[12, 12]} style={{ marginTop: 16 }} align="middle">
+            <Col xs={24} sm={12} md={10} lg={8}>
+              <Input
+                placeholder="Search title, description, year..."
+                prefix={<SearchOutlined />}
+                allowClear
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </Col>
 
-      <Col xs={12} sm={5} md={5}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={openCreate}
-          block
-        >
-          {!isSmall && "New Item"}
-        </Button>
-      </Col>
+            <Col xs={12} sm={6} md={5} lg={4}>
+              <Select
+                placeholder="Filter Year"
+                allowClear
+                value={yearFilter}
+                onChange={setYearFilter}
+                style={{ width: "100%" }}
+              >
+                {availableYears.map(year => (
+                  <Select.Option key={year} value={year}>{year}</Select.Option>
+                ))}
+              </Select>
+            </Col>
 
-      <Col xs={12} sm={5} md={5}>
-        <Button
-          icon={<ReloadOutlined />}
-          loading={loading}
-          onClick={fetchItems}
-          block
-        >
-          {!isSmall && "Refresh"}
-        </Button>
-      </Col>
-    </Row>
-  </Col>
-</Row>
+            <Col xs={12} sm={6} md={9} lg={12}>
+              <Row justify="end" gutter={[8, 8]}>
+                <Col>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={openCreate}
+                  >
+                    {!isSmall ? "New Item" : "New"}
+                  </Button>
+                </Col>
+                <Col>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    loading={loading}
+                    onClick={fetchItems}
+                  >
+                    {!isSmall && "Refresh"}
+                  </Button>
+                </Col>
+              </Row>
+            </Col>
+          </Row>
 
 
           <Divider style={{ margin: "16px 0" }} />
@@ -426,30 +486,29 @@ export default function AdminGallery() {
           onOk={save}
           okText={mode === "edit" ? "Update" : "Create"}
           confirmLoading={saveLoading}
-          width={isMobile ? "96%" : 860}
+          width={isMobile ? "96%" : 680}
           centered
           destroyOnClose
         >
-          <Form layout="vertical">
-            <Row gutter={16}>
-              <Col xs={24}>
-                <Form.Item label="Title *" required>
+          <Form layout="vertical" size="middle">
+            <Row gutter={[12, 8]}>
+              <Col xs={24} sm={16}>
+                <Form.Item label="Title" required style={{ marginBottom: 12 }}>
                   <Input
                     value={form.title}
                     onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
-                    placeholder="e.g. Annual Day Celebration 2024"
+                    placeholder="Gallery title"
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={8}>
-                <Form.Item label="Year *" required>
+              <Col xs={24} sm={8}>
+                <Form.Item label="Year" required style={{ marginBottom: 12 }}>
                   <InputNumber
                     prefix={<CalendarOutlined />}
                     min={1900}
                     max={2100}
-                    step={1}
                     value={form.year}
                     onChange={v => setForm(p => ({ ...p, year: toNumber(v) }))}
                     style={{ width: "100%" }}
@@ -458,60 +517,51 @@ export default function AdminGallery() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={16}>
-                <Form.Item label="Description (optional)">
+              <Col xs={24}>
+                <Form.Item label="Description" style={{ marginBottom: 12 }}>
                   <TextArea
-                    rows={3}
+                    rows={4}
                     value={form.description}
                     onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-                    placeholder="Short description or caption..."
+                    placeholder="Short description..."
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Image URL" required={!trimOrEmpty(form.videoUrl)}>
-                  <Input
-                    prefix={<LinkOutlined />}
-                    value={form.imageUrl}
-                    placeholder="https://..."
-                    onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
-                    disabled={saveLoading}
-                  />
+              <Col xs={24} sm={12}>
+                <Form.Item label="Image" required={!trimOrEmpty(form.videoUrl)} style={{ marginBottom: 8 }}>
+                  <Upload
+                    beforeUpload={handleImageUpload}
+                    maxCount={1}
+                    showUploadList={false}
+                    accept="image/*"
+                  >
+                    <Button icon={<UploadOutlined />} loading={uploading} block size="small">
+                      {uploading ? "Uploading..." : "Upload Image"}
+                    </Button>
+                  </Upload>
                 </Form.Item>
                 {trimOrEmpty(form.imageUrl) && (
                   <Image
                     src={trimOrEmpty(form.imageUrl)}
                     alt="preview"
-                    style={{ width: "100%", maxHeight: 220, objectFit: "contain", borderRadius: 8 }}
+                    style={{ width: "100%", maxHeight: 140, objectFit: "cover", borderRadius: 6 }}
                     preview
                   />
                 )}
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Video URL" required={!trimOrEmpty(form.imageUrl)}>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Video URL" style={{ marginBottom: 8 }}>
                   <Input
                     prefix={<VideoCameraOutlined />}
                     value={form.videoUrl}
-                    placeholder="YouTube / direct video link"
                     onChange={e => setForm(p => ({ ...p, videoUrl: e.target.value }))}
+                    placeholder="https://..."
                     disabled={saveLoading}
                   />
                 </Form.Item>
-                {trimOrEmpty(form.videoUrl) && (
-                  <div style={{ marginTop: 8 }}>
-                    <Tag color="#1ab394" icon={<VideoCameraOutlined />}>
-                      Video link added
-                    </Tag>
-                    <div style={{ marginTop: 4 }}>
-                      <a href={form.videoUrl} target="_blank" rel="noopener noreferrer">
-                        {truncate(form.videoUrl, 60)}
-                      </a>
-                    </div>
-                  </div>
-                )}
               </Col>
             </Row>
           </Form>

@@ -6,6 +6,7 @@ import {
   Col,
   ConfigProvider,
   Grid,
+  Image,
   Modal,
   Row,
   Space,
@@ -29,6 +30,7 @@ import {
   ExclamationCircleOutlined,
   ClockCircleOutlined,
   DollarOutlined,
+  FileImageOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -42,8 +44,7 @@ const fmtDateTime = (iso) =>
         day: "2-digit",
         month: "short",
         year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
+      
       })
     : "-";
 
@@ -90,6 +91,7 @@ export default function AdminPayments() {
 
   const [actionLoading, setActionLoading] = useState({ id: null, type: null });
   const [currentStatus, setCurrentStatus] = useState("ALL");
+  const [yearFilter, setYearFilter] = useState(null);
 
   // Pagination (for correct S No)
   const [page, setPage] = useState(1);
@@ -149,19 +151,29 @@ export default function AdminPayments() {
   }, [fetchPayments, currentStatus]);
 
   // Summary cards (quick UX)
+  const availableYears = useMemo(() => {
+    const years = [...new Set(payments.map(p => p.year).filter(Boolean))];
+    return years.sort((a, b) => b - a);
+  }, [payments]);
+
+  const filteredPayments = useMemo(() => {
+    if (!yearFilter) return payments;
+    return payments.filter(p => p.year === yearFilter);
+  }, [payments, yearFilter]);
+
   const summary = useMemo(() => {
-    const total = payments.length;
-    const pending = payments.filter(
+    const total = filteredPayments.length;
+    const pending = filteredPayments.filter(
       (p) => p.status === "PENDING_VERIFICATION",
     ).length;
-    const verified = payments.filter((p) => p.status === "VERIFIED").length;
-    const rejected = payments.filter((p) => p.status === "REJECTED").length;
-    const amountTotal = payments.reduce(
+    const verified = filteredPayments.filter((p) => p.status === "VERIFIED").length;
+    const rejected = filteredPayments.filter((p) => p.status === "REJECTED").length;
+    const amountTotal = filteredPayments.reduce(
       (sum, p) => sum + (Number(p.amount) || 0),
       0,
     );
     return { total, pending, verified, rejected, amountTotal };
-  }, [payments]);
+  }, [filteredPayments]);
 
   const openEventPayments = useCallback(async (item) => {
     const eventId = item.eventId;
@@ -320,6 +332,20 @@ export default function AdminPayments() {
         align: "center",
         render: statusTag,
       },
+      {
+        title: "Screenshot",
+        dataIndex: "paymentScreenshotUrl",
+        align: "center",
+        render: (url) => url ? (
+          <Image
+            src={url}
+            width={60}
+            height={45}
+            style={{ borderRadius: 6, objectFit: "cover" }}
+            preview
+          />
+        ) : <Text type="secondary">—</Text>,
+      },
     ],
     [],
   );
@@ -365,6 +391,24 @@ export default function AdminPayments() {
         dataIndex: "status",
         align: "center",
         render: statusTag,
+      },
+      {
+        title: "Screenshot",
+        dataIndex: "paymentScreenshotUrl",
+        align: "center",
+        width: 100,
+        render: (url) => url ? (
+          <Tooltip title="View payment screenshot">
+            <Image
+              src={url}
+              width={60}
+              height={45}
+              style={{ borderRadius: 6, objectFit: "cover" }}
+              preview
+            />
+          </Tooltip>
+        ) : <Text type="secondary">—</Text>,
+        responsive: ["md"],
       },
       {
         title: "Actions",
@@ -466,8 +510,7 @@ export default function AdminPayments() {
           bodyStyle={{ padding: isMobile ? 12 : 20 }}
         >
          <Row gutter={[16, 16]} align="middle">
-  {/* LEFT */}
-  <Col xs={24} md={14}>
+  <Col xs={24}>
     <Space direction="vertical" size={2}>
       <Title level={4} style={{ margin: 0 }}>
         Payments Management
@@ -477,29 +520,44 @@ export default function AdminPayments() {
       </Text>
     </Space>
   </Col>
+</Row>
 
-  {/* RIGHT */}
-  <Col xs={24} md={10}>
-    <Row gutter={[8, 8]} justify="end">
-      <Col xs={24} sm={12}>
-        <Select
-          value={currentStatus}
-          onChange={(value) => {
-            setCurrentStatus(value);
-            setPage(1);
-          }}
-          options={statusOptions}
-          placeholder="Filter by status"
-          style={{ width: "100%" }}
-        />
-      </Col>
+{/* Filters Row */}
+<Row gutter={[12, 12]} style={{ marginTop: 16 }} align="middle">
+  <Col xs={12} sm={8} md={6}>
+    <Select
+      value={currentStatus}
+      onChange={(value) => {
+        setCurrentStatus(value);
+        setPage(1);
+      }}
+      options={statusOptions}
+      placeholder="Filter Status"
+      style={{ width: "100%" }}
+    />
+  </Col>
 
-      <Col xs={24} sm={12}>
+  <Col xs={12} sm={8} md={6}>
+    <Select
+      placeholder="Filter Year"
+      allowClear
+      value={yearFilter}
+      onChange={setYearFilter}
+      style={{ width: "100%" }}
+    >
+      {availableYears.map(year => (
+        <Select.Option key={year} value={year}>{year}</Select.Option>
+      ))}
+    </Select>
+  </Col>
+
+  <Col xs={24} sm={8} md={12}>
+    <Row justify="end">
+      <Col>
         <Button
           icon={<ReloadOutlined />}
           onClick={() => fetchPayments(currentStatus)}
           loading={pageLoading}
-          block
         >
           {!isMobile && "Refresh"}
         </Button>
@@ -617,7 +675,7 @@ export default function AdminPayments() {
           ) : (
             <Table
               columns={columns}
-              dataSource={payments}
+              dataSource={filteredPayments}
               rowKey="id"
              
               scroll={{ x: "100%" }}

@@ -16,23 +16,25 @@ import {
   Divider,
   Form,
   Grid,
+  Image,
   Input,
   InputNumber,
   Modal,
   Row,
+  Select,
   Space,
   Switch,
   Table,
   Tag,
   Tooltip,
   Typography,
+  Upload,
   message,
 } from "antd";
 import {
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
-  EyeOutlined,
   EditOutlined,
   DeleteOutlined,
   CalendarOutlined,
@@ -40,6 +42,7 @@ import {
   QrcodeOutlined,
   DollarOutlined,
   ExclamationCircleOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -105,8 +108,10 @@ export default function AdminEvents() {
   const [loading, setLoading] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const [search, setSearch] = useState("");
+  const [yearFilter, setYearFilter] = useState(null);
   const debouncedSearch = useDebouncedValue(search);
 
   const [page, setPage] = useState(1);
@@ -150,16 +155,30 @@ export default function AdminEvents() {
     fetchEvents();
   }, [fetchEvents]);
 
+  const availableYears = useMemo(() => {
+    const years = [...new Set(events.map(ev => ev.year).filter(Boolean))];
+    return years.sort((a, b) => b - a);
+  }, [events]);
+
   const filteredEvents = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return events;
-    return events.filter((ev) =>
-      [ev.title, ev.description, ev.venue, ev.startDate, ev.endDate, String(ev.year || "")]
-        .join(" ")
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [events, debouncedSearch]);
+    let result = events;
+    
+    if (q) {
+      result = result.filter((ev) =>
+        [ev.title, ev.description, ev.venue, ev.startDate, ev.endDate, String(ev.year || "")]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+    
+    if (yearFilter) {
+      result = result.filter((ev) => ev.year === yearFilter);
+    }
+    
+    return result;
+  }, [events, debouncedSearch, yearFilter]);
 
   const openCreate = () => {
     setMode("create");
@@ -189,6 +208,30 @@ export default function AdminEvents() {
   const openPreview = (ev) => {
     setPreviewItem(ev);
     setPreviewOpen(true);
+  };
+
+  const handleImageUpload = async (file) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await axios.post(
+        "https://api.imgbb.com/1/upload?key=f5435f6feb6a01f1128a892cd748a25c",
+        formData
+      );
+      const url = res?.data?.data?.url || res?.data?.data?.display_url;
+      if (url) {
+        setForm((p) => ({ ...p, qrImageUrl: url }));
+        message.success("QR image uploaded successfully!");
+      } else {
+        message.error("Upload failed - no URL returned");
+      }
+    } catch (err) {
+      message.error(err.message || "Image upload failed");
+    } finally {
+      setUploading(false);
+    }
+    return false;
   };
 
   const validate = () => {
@@ -311,6 +354,21 @@ export default function AdminEvents() {
         render: (_, ev) => <Text strong>{fmtINR(ev.ticketPrice)}</Text>,
       },
       {
+        title: "QR Code",
+        dataIndex: "qrImageUrl",
+        align: "center",
+        width: 100,
+        render: (url) => url ? (
+          <Image
+            src={url}
+            width={60}
+            height={45}
+            style={{ borderRadius: 6, objectFit: "cover" }}
+            preview
+          />
+        ) : <Text type="secondary">—</Text>,
+      },
+      {
         title: "Visibility",
         align: "center",
         render: (_, ev) =>
@@ -367,8 +425,7 @@ export default function AdminEvents() {
           style={{ borderRadius: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}
         >
          <Row gutter={[16, 16]} align="middle">
-  {/* LEFT */}
-  <Col xs={24} md={12}>
+  <Col xs={24}>
     <Space direction="vertical" size={4}>
       <Title level={4} style={{ margin: 0, color: "#008cba" }}>
         Event Management
@@ -378,40 +435,53 @@ export default function AdminEvents() {
       </Text>
     </Space>
   </Col>
+</Row>
 
-  {/* RIGHT */}
-  <Col xs={24} md={12}>
-    <Row justify={isSmall ? "start" : "end"} gutter={[8, 8]}>
-      <Col xs={24} sm={14} md={10} lg={8}>
-        <Input
-          placeholder="Search title, venue, date..."
-          prefix={<SearchOutlined />}
-          allowClear
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-      </Col>
+{/* Filters & Actions Row */}
+<Row gutter={[12, 12]} style={{ marginTop: 16 }} align="middle">
+  <Col xs={24} sm={12} md={10} lg={8}>
+    <Input
+      placeholder="Search title, venue, date..."
+      prefix={<SearchOutlined />}
+      allowClear
+      value={search}
+      onChange={(e) => {
+        setSearch(e.target.value);
+        setPage(1);
+      }}
+    />
+  </Col>
 
-      <Col xs={12} sm={5} md={5}>
+  <Col xs={12} sm={6} md={5} lg={4}>
+    <Select
+      placeholder="Filter Year"
+      allowClear
+      value={yearFilter}
+      onChange={setYearFilter}
+      style={{ width: "100%" }}
+    >
+      {availableYears.map(year => (
+        <Select.Option key={year} value={year}>{year}</Select.Option>
+      ))}
+    </Select>
+  </Col>
+
+  <Col xs={12} sm={6} md={9} lg={12}>
+    <Row justify="end" gutter={[8, 8]}>
+      <Col>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={openCreate}
-          block
         >
-          {!isSmall && "New Event"}
+          {!isSmall ? "New Event" : "New"}
         </Button>
       </Col>
-
-      <Col xs={12} sm={5} md={5}>
+      <Col>
         <Button
           icon={<ReloadOutlined />}
           loading={loading}
           onClick={fetchEvents}
-          block
         >
           {!isSmall && "Refresh"}
         </Button>
@@ -456,14 +526,14 @@ export default function AdminEvents() {
           onOk={save}
           okText={mode === "edit" ? "Update" : "Create"}
           confirmLoading={saveLoading}
-          width={isMobile ? "96%" : 900}
+          width={isMobile ? "96%" : 650}
           centered
           destroyOnClose
         >
-          <Form layout="vertical">
-            <Row gutter={16}>
-              <Col xs={24} md={16}>
-                <Form.Item label="Title *" required>
+          <Form layout="vertical" size="middle">
+            <Row gutter={[12, 8]}>
+              <Col xs={24} sm={16}>
+                <Form.Item label="Title *" style={{ marginBottom: 12 }}>
                   <Input
                     value={form.title}
                     onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
@@ -473,8 +543,8 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={8}>
-                <Form.Item label="Year">
+              <Col xs={12} sm={4}>
+                <Form.Item label="Year" style={{ marginBottom: 12 }}>
                   <InputNumber
                     min={2000}
                     max={2100}
@@ -486,8 +556,20 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Start Date *" required>
+              <Col xs={12} sm={4}>
+                <Form.Item label="Visibility" style={{ marginBottom: 12 }}>
+                  <Switch
+                    checked={form.isPublic}
+                    onChange={(v) => setForm((p) => ({ ...p, isPublic: v }))}
+                    checkedChildren="On"
+                    unCheckedChildren="Off"
+                    disabled={saveLoading}
+                  />
+                </Form.Item>
+              </Col>
+
+              <Col xs={12} sm={12}>
+                <Form.Item label="Start Date *" style={{ marginBottom: 12 }}>
                   <DatePicker
                     style={{ width: "100%" }}
                     value={form.startDate}
@@ -498,8 +580,8 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="End Date *" required>
+              <Col xs={12} sm={12}>
+                <Form.Item label="End Date *" style={{ marginBottom: 12 }}>
                   <DatePicker
                     style={{ width: "100%" }}
                     value={form.endDate}
@@ -510,22 +592,21 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Venue">
+              <Col xs={24} sm={12}>
+                <Form.Item label="Venue" style={{ marginBottom: 12 }}>
                   <Input
                     prefix={<EnvironmentOutlined />}
                     value={form.venue}
                     onChange={(e) => setForm((p) => ({ ...p, venue: e.target.value }))}
-                    placeholder="e.g. School Ground, Hyderabad"
+                    placeholder="e.g. School Ground"
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={12}>
-                <Form.Item label="Ticket Price (₹)">
+              <Col xs={12} sm={6}>
+                <Form.Item label="Ticket (₹)" style={{ marginBottom: 12 }}>
                   <InputNumber
-                    prefix={<DollarOutlined />}
                     min={0}
                     value={form.ticketPrice}
                     onChange={(v) => setForm((p) => ({ ...p, ticketPrice: toNumber(v) }))}
@@ -535,8 +616,8 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={8}>
-                <Form.Item label="Total Income (₹)">
+              <Col xs={12} sm={6}>
+                <Form.Item label="Income (₹)" style={{ marginBottom: 12 }}>
                   <InputNumber
                     min={0}
                     value={form.income}
@@ -547,8 +628,8 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={8}>
-                <Form.Item label="Total Expense (₹)">
+              <Col xs={24} sm={12}>
+                <Form.Item label="Expense (₹)" style={{ marginBottom: 12 }}>
                   <InputNumber
                     min={0}
                     value={form.expense}
@@ -559,41 +640,48 @@ export default function AdminEvents() {
                 </Form.Item>
               </Col>
 
-              <Col xs={24} md={8}>
-                <Form.Item label="Visibility">
-                  <Switch
-                    checked={form.isPublic}
-                    onChange={(v) => setForm((p) => ({ ...p, isPublic: v }))}
-                    checkedChildren="Public"
-                    unCheckedChildren="Private"
-                    disabled={saveLoading}
-                  />
+              <Col xs={24} sm={16}>
+                <Form.Item label="QR Code Upload" style={{ marginBottom: 12 }}>
+                  <Upload
+                    beforeUpload={handleImageUpload}
+                    showUploadList={false}
+                    accept="image/*"
+                    disabled={uploading || saveLoading}
+                  >
+                    <Button
+                      icon={<UploadOutlined />}
+                      loading={uploading}
+                      disabled={saveLoading}
+                      block
+                    >
+                      {uploading ? "Uploading..." : "Upload QR Code"}
+                    </Button>
+                  </Upload>
                 </Form.Item>
               </Col>
 
-              <Col xs={24}>
-                <Form.Item label="QR Code / Payment Link">
-                  <Input
-                    prefix={<QrcodeOutlined />}
-                    value={form.qrImageUrl}
-                    onChange={(e) => setForm((p) => ({ ...p, qrImageUrl: e.target.value }))}
-                    placeholder="https://..."
-                    disabled={saveLoading}
-                  />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24}>
-                <Form.Item label="Description">
+              <Col xs={24} sm={8}>
+                <Form.Item label="Description" style={{ marginBottom: 12 }}>
                   <TextArea
-                    rows={4}
+                    rows={3}
                     value={form.description}
                     onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Event details, highlights, instructions..."
+                    placeholder="Event details..."
                     disabled={saveLoading}
                   />
                 </Form.Item>
               </Col>
+
+              {form.qrImageUrl && (
+                <Col xs={24}>
+                  <Image
+                    src={form.qrImageUrl}
+                    alt="QR Code"
+                    style={{ maxHeight: 150, width: "100%", objectFit: "contain", borderRadius: 8 }}
+                    preview
+                  />
+                </Col>
+              )}
             </Row>
           </Form>
         </Modal>

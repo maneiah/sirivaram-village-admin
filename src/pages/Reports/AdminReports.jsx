@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Alert,
@@ -12,113 +12,52 @@ import {
   Statistic,
   Tag,
   Typography,
-  Tooltip,
   Skeleton,
   Divider,
   message,
   ConfigProvider,
+  Table,
 } from "antd";
 import {
   ReloadOutlined,
   UserOutlined,
-  ClockCircleOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
-  CalendarOutlined,
   DollarOutlined,
-  ExclamationCircleOutlined,
-  InfoCircleOutlined,
-  SettingOutlined,
+  CalendarOutlined,
+  ClockCircleOutlined,
   RightOutlined,
 } from "@ant-design/icons";
 import { motion } from "framer-motion";
+import axios from "axios";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title as ChartTitle,
+  Tooltip as ChartTooltip,
+  Legend,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  ChartTitle,
+  ChartTooltip,
+  Legend
+);
 
 const { Title, Text } = Typography;
 const { useBreakpoint } = Grid;
 
 const DASHBOARD_API = "https://sirivaram-backed.onrender.com/api/admin/dashboard/summary";
+const USERS_API = "https://sirivaram-backed.onrender.com/api/users";
 
-const toNumber = (v) => Number(v) || 0;
-const fmtNumber = (num) => toNumber(num).toLocaleString("en-IN");
-
-const statusMeta = (status = "") => {
-  const s = String(status).toLowerCase();
-  if (["approved", "verified"].includes(s)) return { color: "success", icon: <CheckCircleOutlined /> };
-  if (s === "pending") return { color: "warning", icon: <ClockCircleOutlined /> };
-  if (s === "rejected") return { color: "error", icon: <CloseCircleOutlined /> };
-  return { color: "default", icon: null };
-};
-
-const StatCard = ({ title, value, icon, valueColor, hint, statusLabel, tooltip, onClick, bgColor = "#ffffff" }) => {
-  const { color, icon: statusIcon } = statusMeta(statusLabel);
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-
-  return (
-    <Col xs={24} sm={12} md={12} lg={8} xl={6}>
-      <motion.div
-        whileHover={{ y: -4, scale: 1.015 }}
-        whileTap={{ scale: 0.98 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      >
-        <Card
-          bordered={false}
-          hoverable={!!onClick}
-          onClick={onClick}
-          style={{
-            height: "100%",
-            borderRadius: 16,
-            background: bgColor,
-            boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
-            border: "1px solid rgba(0,0,0,0.04)",
-            transition: "all 0.3s ease",
-          }}
-          bodyStyle={{ padding: isMobile ? 16 : 20 }}
-        >
-          <Space direction="vertical" size={12} style={{ width: "100%" }}>
-            <Space align="center" style={{ justifyContent: "space-between", width: "100%" }}>
-              <Text strong style={{ fontSize: isMobile ? 14 : 15, color: "rgba(0,0,0,0.88)" }}>
-                {title}
-              </Text>
-              <Tooltip title={tooltip || title}>
-                <InfoCircleOutlined style={{ color: "rgba(0,0,0,0.45)", fontSize: isMobile ? 14 : 16 }} />
-              </Tooltip>
-            </Space>
-
-            <Statistic
-              value={fmtNumber(value)}
-              prefix={<span style={{ fontSize: isMobile ? 22 : 28, color: valueColor }}>{icon}</span>}
-              valueStyle={{
-                fontSize: isMobile ? 28 : 36,
-                fontWeight: 700,
-                color: valueColor,
-                lineHeight: 1.1,
-              }}
-            />
-
-            <Space size={8} wrap>
-              {statusLabel && (
-                <Tag
-                  icon={statusIcon}
-                  color={color}
-                  style={{ borderRadius: 6, padding: "0 8px", fontSize: isMobile ? 11 : 12, border: "none" }}
-                >
-                  {statusLabel}
-                </Tag>
-              )}
-              {hint && (
-                <Text type="secondary" style={{ fontSize: isMobile ? 11 : 12 }}>
-                  {hint}
-                </Text>
-              )}
-              {onClick && <RightOutlined style={{ marginLeft: "auto", color: "rgba(0,0,0,0.35)", fontSize: 12 }} />}
-            </Space>
-          </Space>
-        </Card>
-      </motion.div>
-    </Col>
-  );
-};
+const fmtNumber = (num) => (Number(num) || 0).toLocaleString("en-IN");
 
 export default function AdminReports() {
   const navigate = useNavigate();
@@ -131,6 +70,17 @@ export default function AdminReports() {
   const [firstLoad, setFirstLoad] = useState(true);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const aliveRef = useRef(true);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+    };
+  }, []);
 
   const lastUpdatedText = useMemo(() => {
     if (!lastUpdated) return "Not refreshed yet";
@@ -177,18 +127,176 @@ export default function AdminReports() {
     }
   }, [getAuthHeaders]);
 
+  const fetchUsers = useCallback(async () => {
+    setUsersLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await axios.get(USERS_API, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        signal: controller.signal,
+      });
+
+      const list = Array.isArray(response.data) ? response.data : [];
+      if (aliveRef.current) {
+        setUsers(list);
+      }
+    } catch (err) {
+      const msg =
+        err?.name === "CanceledError"
+          ? "Request cancelled"
+          : err?.name === "AbortError"
+            ? "Request timed out. Please try again."
+            : err?.response?.data?.message ||
+              "Failed to load users. Please try again.";
+
+      if (aliveRef.current) {
+        setUsers([]);
+        message.error(msg);
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (aliveRef.current) {
+        setUsersLoading(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     fetchSummary();
-  }, [fetchSummary]);
+    fetchUsers();
+  }, [fetchSummary, fetchUsers]);
 
   const handleNavigate = useCallback((path) => navigate(path), [navigate]);
+
+  const mainCards = useMemo(() => [
+    {
+      title: "Total Users",
+      value: data?.totalUsers || 0,
+      icon: <UserOutlined />,
+      color: "#1677ff",
+      bgColor: "#e6f7ff",
+      path: "/users",
+    },
+    {
+      title: "Approved Users",
+      value: data?.approvedUsers || 0,
+      icon: <CheckCircleOutlined />,
+      color: "#52c41a",
+      bgColor: "#f6ffed",
+      path: "/users",
+    },
+    {
+      title: "Total Payments",
+      value: data?.totalPayments || 0,
+      icon: <DollarOutlined />,
+      color: "#1677ff",
+      bgColor: "#e6f7ff",
+      path: "/payments",
+    },
+    {
+      title: "Total Events",
+      value: data?.totalEvents || 0,
+      icon: <CalendarOutlined />,
+      color: "#722ed1",
+      bgColor: "#f9f0ff",
+      path: "/events",
+    },
+  ], [data]);
+
+  const userColumns = useMemo(
+    () => [
+      {
+        title: "S.No",
+        align: "center",
+        width: 70,
+        render: (_, __, idx) => idx + 1,
+      },
+      {
+        title: "Name",
+        dataIndex: "name",
+        align: "center",
+        render: (v) => <Text strong>{v || "—"}</Text>,
+      },
+      {
+        title: "Email",
+        dataIndex: "email",
+        align: "center",
+        responsive: ["md"],
+      },
+      {
+        title: "Mobile",
+        dataIndex: "mobile",
+        align: "center",
+        responsive: ["lg"],
+      },
+      {
+        title: "Status",
+        dataIndex: "status",
+        align: "center",
+        render: (status) => {
+          const colors = {
+            APPROVED: "success",
+            PENDING: "warning",
+            REJECTED: "error",
+          };
+          return <Tag color={colors[status] || "default"}>{status || "UNKNOWN"}</Tag>;
+        },
+      },
+    ],
+    []
+  );
+
+  const userStats = useMemo(() => {
+    const total = users.length;
+    const approved = users.filter(u => u.status === "APPROVED").length;
+    const pending = users.filter(u => u.status === "PENDING").length;
+    const rejected = users.filter(u => u.status === "REJECTED").length;
+    return { total, approved, pending, rejected };
+  }, [users]);
+
+  const chartData = useMemo(() => ({
+    labels: ["Total", "Approved", "Pending", "Rejected"],
+    datasets: [
+      {
+        label: "Users Count",
+        data: [userStats.total, userStats.approved, userStats.pending, userStats.rejected],
+        borderColor: "#1677ff",
+        backgroundColor: "rgba(22, 119, 255, 0.1)",
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  }), [userStats]);
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: "top",
+      },
+      title: {
+        display: true,
+        text: "User Statistics Overview",
+        font: { size: 16, weight: "bold" },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: { stepSize: 1 },
+      },
+    },
+  };
 
   const containerVariants = {
     hidden: { opacity: 0, y: 16 },
     visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.08, delayChildren: 0.15 } },
   };
-
-  const itemVariants = { hidden: { opacity: 0, y: 8 }, visible: { opacity: 1, y: 0 } };
 
   return (
     <ConfigProvider
@@ -200,185 +308,175 @@ export default function AdminReports() {
         },
       }}
     >
-      <div style={{ padding: isMobile ? "16px 12px" : isTablet ? "20px 16px" : "24px 32px", maxWidth: "100%" }}>
+      <div style={{ padding: isMobile ? "12px" : isTablet ? "16px" : "20px", maxWidth: "100%", background: "#f5f5f5", minHeight: "100vh" }}>
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Row gutter={[16, 16]} align="middle" justify="space-between">
-            <Col xs={24} md={16}>
-              <Space direction="vertical" size={8}>
-                <Title
-                  level={isMobile ? 3 : 2}
-                  style={{ margin: 0, fontWeight: 800, color: "rgba(0,0,0,0.88)" }}
-                >
-                  Admin Dashboard
-                </Title>
-                <Space size={8} wrap>
-                  <Tag icon={<ClockCircleOutlined />} color="default" style={{ borderRadius: 8 }}>
-                    Last updated: <Text strong>{lastUpdatedText}</Text>
-                  </Tag>
-                  <Tag color="blue" style={{ borderRadius: 8 }}>Live</Tag>
+          <Card bordered={false} style={{ marginBottom: 16, borderRadius: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+            <Row gutter={[12, 12]} align="middle" justify="space-between">
+              <Col xs={24} md={16}>
+                <Space direction="vertical" size={4}>
+                  <Title level={isMobile ? 4 : 3} style={{ margin: 0, fontWeight: 700, color: "#008cba" }}>
+                    Dashboard Overview
+                  </Title>
+                  <Space size={6} wrap>
+                    <Tag icon={<ClockCircleOutlined />} color="blue" style={{ borderRadius: 6, fontSize: 11 }}>
+                      {lastUpdatedText}
+                    </Tag>
+                    <Tag color="success" style={{ borderRadius: 6, fontSize: 11 }}>Live</Tag>
+                  </Space>
                 </Space>
-              </Space>
-            </Col>
-            <Col xs={24} md={8} style={{ textAlign: isMobile ? "left" : "right" }}>
-              <Button
-                type="primary"
-                icon={<ReloadOutlined />}
-                loading={loading}
-                onClick={fetchSummary}
-                size={isMobile ? "middle" : "large"}
-                style={{ borderRadius: 10, fontWeight: 600 }}
-              >
-                {isMobile ? "Refresh" : "Refresh Dashboard"}
-              </Button>
-            </Col>
-          </Row>
+              </Col>
+              <Col xs={24} md={8} style={{ textAlign: isMobile ? "left" : "right" }}>
+                <Button
+                  type="primary"
+                  icon={<ReloadOutlined />}
+                  loading={loading}
+                  onClick={fetchSummary}
+                  size="middle"
+                  style={{ borderRadius: 8, backgroundColor: "#008cba", color: "#ffffff", fontWeight: 600 }}
+                >
+                  Refresh
+                </Button>
+              </Col>
+            </Row>
+          </Card>
         </motion.div>
-
-        <Divider style={{ margin: "20px 0" }} />
 
         {/* Error */}
         {error && (
           <Alert
             type="error"
             showIcon
-            message="Error Loading Dashboard"
+            message="Error"
             description={error}
-            action={
-              <Button type="primary" danger onClick={fetchSummary} loading={loading}>
-                Retry
-              </Button>
-            }
-            style={{ marginBottom: 24, borderRadius: 12 }}
+            action={<Button size="small" danger onClick={fetchSummary}>Retry</Button>}
+            style={{ marginBottom: 16, borderRadius: 8 }}
           />
         )}
 
         {/* Loading / Skeleton */}
         {firstLoad ? (
-          <Skeleton active paragraph={{ rows: 10 }} />
+          <Card style={{ borderRadius: 12 }}><Skeleton active paragraph={{ rows: 8 }} /></Card>
         ) : loading && !firstLoad ? (
-          <Card style={{ textAlign: "center", padding: 40, borderRadius: 16 }}>
+          <Card style={{ textAlign: "center", padding: 30, borderRadius: 12 }}>
             <Spin size="large" />
-            <div style={{ marginTop: 16 }}>
-              <Text strong>Refreshing data...</Text>
-            </div>
+            <div style={{ marginTop: 12 }}><Text>Refreshing...</Text></div>
           </Card>
         ) : data ? (
           <motion.div variants={containerVariants} initial="hidden" animate="visible">
-            {/* Users Section */}
-            <Section
-              title="Users Overview"
-              extra={
-                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/users")}>
-                  Manage Users
-                </Button>
-              }
-            >
-              <StatCard
-                title="Total Users"
-                value={data.totalUsers}
-                icon={<UserOutlined />}
-                valueColor="#1677ff"
-                tooltip="Total registered users"
-                onClick={() => handleNavigate("/users")}
-                bgColor="#e6f7ff"
-              />
-              <StatCard
-                title="Pending Users"
-                value={data.pendingUsers}
-                icon={<ExclamationCircleOutlined />}
-                valueColor="#faad14"
-                statusLabel="Pending"
-                hint="Action required"
-                onClick={() => handleNavigate("/users")}
-                bgColor="#fff7e6"
-              />
-              <StatCard
-                title="Approved Users"
-                value={data.approvedUsers}
-                icon={<CheckCircleOutlined />}
-                valueColor="#52c41a"
-                statusLabel="Approved"
-                onClick={() => handleNavigate("/users")}
-                bgColor="#f6ffed"
-              />
-              <StatCard
-                title="Rejected Users"
-                value={data.rejectedUsers}
-                icon={<CloseCircleOutlined />}
-                valueColor="#ff4d4f"
-                statusLabel="Rejected"
-                onClick={() => handleNavigate("/users")}
-                bgColor="#fff1f0"
-              />
-            </Section>
+            {/* Main Stats Cards */}
+            <Row gutter={[10, 10]} style={{ marginBottom: 16 }}>
+              {mainCards.map((card, idx) => (
+                <Col xs={12} sm={12} md={6} lg={6} key={idx}>
+                  <motion.div whileHover={{ y: -3, scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                    <Card
+                      hoverable
+                      onClick={() => handleNavigate(card.path)}
+                      style={{
+                        borderRadius: 10,
+                        background: `linear-gradient(135deg, ${card.bgColor} 0%, ${card.bgColor}dd 100%)`,
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                        border: `1.5px solid ${card.color}25`,
+                        cursor: "pointer",
+                      }}
+                      bodyStyle={{ padding: isMobile ? 10 : 14 }}
+                    >
+                      <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                        <Space align="center" style={{ justifyContent: "space-between", width: "100%" }}>
+                          <span style={{ fontSize: isMobile ? 22 : 26, color: card.color }}>{card.icon}</span>
+                          <RightOutlined style={{ color: "rgba(0,0,0,0.2)", fontSize: 10 }} />
+                        </Space>
+                        <Statistic
+                          value={fmtNumber(card.value)}
+                          valueStyle={{ fontSize: isMobile ? 20 : 26, fontWeight: 700, color: card.color }}
+                        />
+                        <Text strong style={{ fontSize: isMobile ? 10 : 11, color: "rgba(0,0,0,0.6)" }}>
+                          {card.title}
+                        </Text>
+                      </Space>
+                    </Card>
+                  </motion.div>
+                </Col>
+              ))}
+            </Row>
 
-            {/* Events Section */}
-            <Section
-              title="Events Overview"
-              extra={
-                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/events")}>
-                  Manage Events
-                </Button>
-              }
-            >
-              <StatCard title="Total Events" value={data.totalEvents} icon={<CalendarOutlined />} valueColor="#722ed1" onClick={() => handleNavigate("/events")} bgColor="#f9f0ff" />
-              <StatCard title="Active Events" value={toNumber(data.activeEvents)} icon={<CheckCircleOutlined />} valueColor="#52c41a" statusLabel="Active" onClick={() => handleNavigate("/events")} bgColor="#f6ffed" />
-              <StatCard title="Completed Events" value={toNumber(data.completedEvents)} icon={<CheckCircleOutlined />} valueColor="#1677ff" onClick={() => handleNavigate("/events")} bgColor="#e6f7ff" />
-              <StatCard title="Pending Events" value={toNumber(data.pendingEvents)} icon={<ExclamationCircleOutlined />} valueColor="#faad14" statusLabel="Pending" onClick={() => handleNavigate("/events")} bgColor="#fff7e6" />
-            </Section>
-
-            {/* Payments Section */}
-            <Section
-              title="Payments Overview"
-              extra={
-                <Button type="link" icon={<SettingOutlined />} onClick={() => handleNavigate("/payments")}>
-                  Manage Payments
-                </Button>
-              }
-            >
-              <StatCard title="Total Payments" value={data.totalPayments} icon={<DollarOutlined />} valueColor="#1677ff" onClick={() => handleNavigate("/payments")} bgColor="#e6f7ff" />
-              <StatCard title="Pending Payments" value={data.pendingPayments} icon={<ExclamationCircleOutlined />} valueColor="#faad14" statusLabel="Pending" onClick={() => handleNavigate("/payments")} bgColor="#fff7e6" />
-              <StatCard title="Verified Payments" value={data.verifiedPayments} icon={<CheckCircleOutlined />} valueColor="#52c41a" statusLabel="Verified" onClick={() => handleNavigate("/payments")} bgColor="#f6ffed" />
-              <StatCard title="Rejected Payments" value={data.rejectedPayments} icon={<CloseCircleOutlined />} valueColor="#ff4d4f" statusLabel="Rejected" onClick={() => handleNavigate("/payments")} bgColor="#fff1f0" />
-            </Section>
-
-            {/* Quick Actions */}
-            <motion.div variants={itemVariants}>
-              <Card style={{ borderRadius: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
-                <Title level={4} style={{ marginBottom: 16 }}>Quick Actions</Title>
-                <Row gutter={[12, 12]}>
-                  {[
-                    { icon: <UserOutlined />, text: "Manage Users", path: "/users" },
-                    { icon: <CalendarOutlined />, text: "Manage Events", path: "/events" },
-                    { icon: <DollarOutlined />, text: "Verify Payments", path: "/payments" },
-                  ].map((item, i) => (
-                    <Col xs={24} sm={8} key={i}>
-                      <Button
-                        block
-                       
-                        icon={item.icon}
-                        size="large"
-                        onClick={() => handleNavigate(item.path)}
-                        style={{ height: 52, fontWeight: 600,backgroundColor:"#008cba",color:"white", borderRadius: 10 }}
-                      >
-                        {item.text}
-                      </Button>
-                    </Col>
-                  ))}
+            {/* Users Overview Section */}
+            <Card style={{ borderRadius: 10, boxShadow: "0 2px 6px rgba(0,0,0,0.08)" }}>
+              <Space direction="vertical" size={14} style={{ width: "100%" }}>
+                <Row justify="space-between" align="middle">
+                  <Col>
+                    <Space direction="vertical" size={0}>
+                      <Title level={5} style={{ margin: 0, fontWeight: 700, color: "#1677ff" }}>
+                        Users Overview
+                      </Title>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Monitor registrations</Text>
+                    </Space>
+                  </Col>
+                  <Col>
+                    <Button size="small" type="primary" onClick={() => handleNavigate("/users")} style={{ borderRadius: 6 }}>
+                      View All
+                    </Button>
+                  </Col>
                 </Row>
-              </Card>
-            </motion.div>
+
+                {/* User Stats */}
+                <Row gutter={[8, 8]}>
+                  <Col xs={12} sm={6}>
+                    <Card size="small" style={{ textAlign: "center", borderRadius: 8, background: "linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)", border: "1px solid #1677ff20" }}>
+                      <Statistic title="Total" value={userStats.total} valueStyle={{ color: "#1677ff", fontSize: isMobile ? 16 : 20, fontWeight: 700 }} />
+                    </Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card size="small" style={{ textAlign: "center", borderRadius: 8, background: "linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)", border: "1px solid #52c41a20" }}>
+                      <Statistic title="Approved" value={userStats.approved} valueStyle={{ color: "#52c41a", fontSize: isMobile ? 16 : 20, fontWeight: 700 }} />
+                    </Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card size="small" style={{ textAlign: "center", borderRadius: 8, background: "linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)", border: "1px solid #faad1420" }}>
+                      <Statistic title="Pending" value={userStats.pending} valueStyle={{ color: "#faad14", fontSize: isMobile ? 16 : 20, fontWeight: 700 }} />
+                    </Card>
+                  </Col>
+                  <Col xs={12} sm={6}>
+                    <Card size="small" style={{ textAlign: "center", borderRadius: 8, background: "linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%)", border: "1px solid #ff4d4f20" }}>
+                      <Statistic title="Rejected" value={userStats.rejected} valueStyle={{ color: "#ff4d4f", fontSize: isMobile ? 16 : 20, fontWeight: 700 }} />
+                    </Card>
+                  </Col>
+                </Row>
+
+                {/* Users Chart */}
+                <Card size="small" style={{ borderRadius: 8, background: "#fafafa", border: "1px solid #e8e8e8" }}>
+                  <div style={{ height: isMobile ? 180 : 240 }}>
+                    <Line data={chartData} options={chartOptions} />
+                  </div>
+                </Card>
+
+                {/* Users Table */}
+                <Table
+                  columns={userColumns}
+                  dataSource={users}
+                  rowKey="id"
+                  loading={usersLoading}
+                  scroll={{ x: "100%" }}
+                  pagination={{
+                    pageSize: 8,
+                    showSizeChanger: true,
+                    pageSizeOptions: ["8", "16", "24"],
+                    showTotal: (total, range) => `${range[0]}-${range[1]} of ${total}`,
+                    size: "small",
+                  }}
+                  size={isMobile ? "small" : "middle"}
+                  bordered
+                  locale={{ emptyText: "No users found" }}
+                />
+              </Space>
+            </Card>
           </motion.div>
         ) : (
           !loading && !firstLoad && (
-            <Card style={{ textAlign: "center", padding: 40, borderRadius: 16 }}>
-              <Text type="secondary" style={{ fontSize: 16, display: "block", marginBottom: 16 }}>
-                No dashboard data available yet.
-              </Text>
-              <Button type="primary" onClick={fetchSummary} icon={<ReloadOutlined />}>
-                Load Data
-              </Button>
+            <Card style={{ textAlign: "center", padding: 30, borderRadius: 10 }}>
+              <Text type="secondary" style={{ fontSize: 14 }}>No data available</Text>
+              <br />
+              <Button type="primary" onClick={fetchSummary} icon={<ReloadOutlined />} style={{ marginTop: 12 }}>Load Data</Button>
             </Card>
           )
         )}
@@ -386,29 +484,3 @@ export default function AdminReports() {
     </ConfigProvider>
   );
 }
-
-const Section = ({ title, children, extra }) => {
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-
-  return (
-    <Card
-      bordered={false}
-      style={{
-        marginBottom: 24,
-        borderRadius: 16,
-        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
-      }}
-    >
-      <Space direction="vertical" size={16} style={{ width: "100%" }}>
-        <Space align="center" style={{ justifyContent: "space-between", width: "100%", flexWrap: "wrap" }}>
-          <Title level={4} style={{ margin: 0, fontWeight: 700 }}>
-            {title}
-          </Title>
-          {extra}
-        </Space>
-        <Row gutter={[16, 16]}>{children}</Row>
-      </Space>
-    </Card>
-  );
-};

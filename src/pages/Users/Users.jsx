@@ -673,7 +673,6 @@ return (
           borderRadius: 20,
           boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
           border: "1px solid rgba(0,0,0,0.06)",
-         
         }}
         bodyStyle={{ padding: isMobile ? 16 : isTablet ? 20 : 24 }}
       >
@@ -688,11 +687,11 @@ return (
             <Col xs={24} md={10}>
               <Space direction="vertical" size={6}>
                 <Title
-                  level={2}
+                  level={4}
                   style={{
                     margin: 0,
                     fontSize: isMobile ? 22 : isTablet ? 26 : 30,
-                    fontWeight: 800,
+                    
                   }}
                 >
                   Users Management
@@ -732,8 +731,6 @@ return (
                   icon={<ReloadOutlined />}
                   onClick={fetchUsers}
                   loading={loading}
-                
-                 
                   style={{
                     borderRadius: 12,
                     fontWeight: 600,
@@ -765,17 +762,17 @@ return (
             dataSource={filteredUsers}
             rowKey="id"
             loading={loading}
-             pagination={{
-                current: page,
-                pageSize,
-                showSizeChanger: true,
-                onChange: (p, ps) => {
-                  setPage(p);
-                  setPageSize(ps);
-                },
-                showTotal: (total, range) =>
-                  `${range[0]}-${range[1]} of ${total}`,
-              }}
+            pagination={{
+              current: page,
+              pageSize,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+              showTotal: (total, range) =>
+                `${range[0]}-${range[1]} of ${total}`,
+            }}
             scroll={{ x: "100%" }}
             className="users-table"
             bordered
