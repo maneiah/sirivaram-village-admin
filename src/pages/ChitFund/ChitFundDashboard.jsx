@@ -1,8 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import './ChitFund.css';
 
 const ChitFundDashboard = () => {
+  const [searchParams] = useSearchParams();
   const [activePage, setActivePage] = useState('dashboard');
+
+  useEffect(() => {
+    const page = searchParams.get('page') || 'dashboard';
+    setActivePage(page);
+  }, [searchParams]);
 
   const nav = (page) => {
     setActivePage(page);

@@ -12,6 +12,8 @@ import AdminEvents from "./pages/Events/AdminEvents";
 import FooterSettings from "./pages/Footer/FooterSettings";
 import AdminPayments from "./pages/AdminPayments/AdminPayments";
 import ChitFundDashboard from "./pages/ChitFund/ChitFundDashboard";
+import ChitFundLogin from "./pages/ChitFund/ChitFundLogin";
+import ChitFundAdminLayout from "./pages/ChitFund/ChitFundAdminLayout";
 
 const App = () => {
   return (
@@ -22,10 +24,14 @@ const App = () => {
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
 
+          {/* CHIT FUND ROUTES - SEPARATE ADMIN SYSTEM */}
+          <Route path="/chitadmin" element={<ChitFundLogin />} />
+          <Route path="/chitdashboard" element={<ChitFundAdminLayout><ChitFundDashboard /></ChitFundAdminLayout>} />
+
           {/* Redirect root */}
           <Route path="/" element={<Navigate to="/login" replace />} />
 
-          {/* ADMIN ROUTES */}
+          {/* MAIN ADMIN ROUTES */}
           <Route element={<AdminPanelLayoutTest />}>
             {/* choose one */}
             <Route index element={<Navigate to="/login" replace />} />
@@ -38,7 +44,6 @@ const App = () => {
             <Route path="gallery" element={<AdminGallery />} />
             <Route path="footer" element={<FooterSettings />} />
             <Route path="payments" element={<AdminPayments />} />
-            <Route path="chit-fund" element={<ChitFundDashboard />} />
           </Route>
 
           {/* Catch-all */}
