@@ -63,7 +63,7 @@ const ADMIN_MENU = [
     icon: <ReadOutlined />,
     to: "/blogs",
   },
-  
+
   {
     key: "/gallery",
     label: "Gallery Management",
@@ -82,6 +82,12 @@ const ADMIN_MENU = [
     icon: <DollarCircleOutlined />,
     to: "/payments",
   },
+  {
+    key: "/chit-fund",
+    label: "Chit Fund Management",
+    icon: <DollarCircleOutlined />,
+    to: "/chit-fund",
+  },
 ];
 
 // Breadcrumb label map
@@ -93,6 +99,7 @@ const LABEL_MAP = {
   gallery: "Gallery Management",
   footer: "Site Configuration",
   payments: "Payment Processing",
+  "chit-fund": "Chit Fund Management",
 };
 
 const getSelectedKey = (pathname) => {

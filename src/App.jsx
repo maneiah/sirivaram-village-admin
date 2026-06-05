@@ -11,6 +11,7 @@ import AdminReportSummary from "./pages/Reports/AdminReports";
 import AdminEvents from "./pages/Events/AdminEvents";
 import FooterSettings from "./pages/Footer/FooterSettings";
 import AdminPayments from "./pages/AdminPayments/AdminPayments";
+import ChitFundDashboard from "./pages/ChitFund/ChitFundDashboard";
 
 const App = () => {
   return (
@@ -37,6 +38,7 @@ const App = () => {
             <Route path="gallery" element={<AdminGallery />} />
             <Route path="footer" element={<FooterSettings />} />
             <Route path="payments" element={<AdminPayments />} />
+            <Route path="chit-fund" element={<ChitFundDashboard />} />
           </Route>
 
           {/* Catch-all */}
